@@ -1,0 +1,127 @@
+Metadata Prompt:
+
+We are CNRL executives and are on a journey to identify our next acquisition candidate.
+We have a rich datset from Petrinex that includes the following tables
+sbx_petrinex_app
+database	tableName	
+petrinex	facilities
+petrinex	facility_emissions
+petrinex	field_codes	
+petrinex	market_prices
+petrinex	ngl_volumes
+petrinex	operators
+petrinex	volumetrics
+petrinex	wells
+
+
+Based upon ROCE and a discount rate of 15% we would like to identify the next best acquistion based upon the highest acretive candidate and seondarily with proximity to exisitng CNRL assets.  We would like to understand the savings in transport costs between the top 3 candidates as a function of proximity exisitng CNRL facilities and pipelines.  We would like an application that uses lakebase to serve a map that will allow us to lasso and select CNRL assets that would produce a table highlighting the nearest competitive assets production by oil, gas and NGLs.
+
+What does the perfect prompt include that would allow you to develop the highest quality application with respect to these requirements?  
+
+
+
+
+
+Genie Code
+
+What the data supports and what it's missing
+
+CNRL is in the data: operator 0HE9 (CANADIAN NATURAL RESOURCES LIMITED) has 4,706 facilities. All facilities have latitude and longitude, and production runs from 2024-01 to 2025-12.
+No pipeline data: facility types are only Gas Plant, Battery, Injection Facility and Gas Gathering System. Without a pipeline source, "proximity to pipelines" falls back to distance to CNRL plants and gathering systems.
+No financial data: there is no capex, opex, royalties, capital employed or deal price. Without those, ROCE and the 15% discounted value of a deal (NPV) can't be calculated.
+Prices don't line up with production: market_pricessbx_petrinex_app.petrinex.market_prices covers 2025-01 to 2026-02 (14 months), so 2024 production has no matching prices.
+Formatting issues: volume columns in volumetrics and ngl_volumes are stored as text and need converting. NGLs have to be summed from the ethane, propane, butane and pentane columns.
+What the perfect prompt includes
+
+Your definitions:
+ROCE (for example, EBIT ÷ (total assets − current liabilities)) and what "accretive" means: higher combined ROCE, positive NPV at 15%, or both.
+Who counts as a candidate: a whole operator or a group of facilities, plus any minimum size.
+The economics, so I don't have to make them up:
+Opex per barrel of oil equivalent (boe), royalty rates, and how purchase price is set (for example, $/flowing boe/d).
+Decline rates, how many years to project, and whether to use the existing price table or a fixed price forecast.
+The units to convert to boe (for example, 6 mcf of gas = 1 boe).
+Transport cost:
+Tariff in $/bbl/km (oil) and $/GJ/km (gas), or trucking versus pipeline rates.
+Distance as straight-line or by road, and the search radius (for example, 25 km).
+Where pipeline locations come from (AER pipeline data or another file), if you want real pipelines included.
+How to rank: scoring weights (for example, 70% accretion, 30% proximity), and the outputs you want for the top 3: transport savings per year, NPV of those savings, and a sensitivity range.
+App requirements:
+Map style, lasso behaviour, and the table columns (operator, facility, oil m³, gas e³m³, NGL m³, distance).
+Production period (latest 12 months or a chosen range), refresh frequency, and who gets access.
+Lakebase details: the database project name and which tables to sync.
+Where outputs go: a target catalog/schema for the analysis tables and a separate app to build on top of them.
+Phases: build it in stages (data cleanup → value model → proximity → Lakebase sync → app), with a check at each stage.
+Example prompt
+
+"Using sbx_petrinex_app.petrinex (CNRL is operator 0HE9), build a medallion pipeline that:
+
+converts the volume columns to numbers;
+gives each operator trailing-12-month oil, gas and NGL volumes and a boe total;
+values each candidate with NPV at 15% (WCS/AECO prices; opex $X/boe; royalty Y%; decline Z%; 10 years; price $A per flowing boe/d);
+calculates ROCE as [formula] for combined CNRL plus the target;
+ranks by accretion, with ties broken by the share of target volume within 25 km of a CNRL gas plant or battery;
+for the top 3, estimates yearly transport savings at $B/bbl/km and $C/GJ/km, versus their current delivery points.
+Write the results to sbx_petrinex_app.acq. Sync the facility and production tables to Lakebase project [name]. Build a Databricks App with a map of CNRL and competitor facilities. Lassoing CNRL assets should show a table of the nearest competitor facilities within N km, with operator, oil, gas, NGL and distance."
+
+I saved this project's goals and data findings for future sessions.
+
+
+
+
+
+Claude
+
+Configuration:
+1. Grant Access to Catalog 
+GRANT USE CATALOG ON CATALOG sbx_petrinex_app TO `<your-user-or-group>`;
+GRANT USE SCHEMA ON SCHEMA sbx_petrinex_app.petrinex TO `<your-user-or-group>`;
+GRANT SELECT ON SCHEMA sbx_petrinex_app.petrinex TO `<your-user-or-group>`
+
+sbx_petrinex_app_genie
+
+
+<iframe
+  src="https://{workspace url up to .net}/embed/genie/rooms/{your_room_number}"
+  width="100%"
+  height="600"
+  frameborder="0"
+  allow="clipboard-write">
+</iframe>
+
+
+Instructions
+Purpose
+This agent answers questions about Alberta upstream oil and gas activity reported to Petrinex: production by operator, facility, well, region, field and formation; flaring, venting and fuel use; NGL yields; and production value using benchmark prices. Data covers production months 2024-01 through 2025-12. Market prices cover 2025-01 through 2026-02 only.
+
+Which table to use
+- Facility-level production, disposition and other volume flows: use volumetrics. This is the source of truth for production totals by operator, facility, facility type and region.
+- Well-level production and NGL component volumes (ethane, propane, butane, pentane, lite mix, residue gas): use ngl_volumes for monthly figures and wells for lifetime totals and attributes such as formation, field and pool.
+- Flaring, venting and fuel gas by facility and month: use facility_emissions, or the Flared gas and Vented gas measures on volumetrics.
+- Facility attributes (region, facility type, subtype, DLS location, coordinates): use facilities.
+- Benchmark prices (WTI, WCS, WCS discount, AECO, USD/CAD rate): use market_prices.
+
+Production rules
+- "Production" means the PROD activity only. Apply the "Production activity only" filter and use the Oil, Gas, Condensate and Water production measures. Other activity codes (disposition, receipts, inventory, royalty, fuel, injection, load fluid, etc.) describe movements of product and must not be added to production.
+- Do not use the total volume columns in the operators table to answer production questions. Those totals add up every reported activity, not just production, so they overstate production several times over. Use operators only for operator names, facility counts and first and last production month. Compute operator production from volumetrics.
+- The totals in the wells table are lifetime sums (2024-01 to 2025-12) of that well's monthly ngl_volumes rows. Use them for lifetime and ranking questions, and use ngl_volumes for trends over time.
+- In facility_emissions, total emissions volume is flare plus vent plus fuel gas. Its production volume column combines products, so don't use it as gas or oil production.
+- Volume, energy, hours and proration values in volumetrics and ngl_volumes are stored as text. Always cast them safely to numbers before doing math.
+- Production months are text in YYYY-MM format. Compare them as strings for ranges, or use the "Production month as date" derived column when date math is needed.
+
+Units and conversions
+- Oil, condensate, water and NGL volumes are in cubic metres (m3). Gas volumes, including flare, vent, fuel and residue gas, are in thousand cubic metres (e3m3). Energy is in gigajoules (GJ).
+- Report native units by default. When users ask for barrels, barrels per day, Mcf or MMcf/d, use the "Liquid volume in barrels" and "Gas volume in Mcf" conversions. Get daily rates with "Days in production month", or divide by the number of days in the period.
+- Oil prices are per barrel (USD or CAD versions available). AECO gas is CAD per GJ. The WCS discount is the positive spread of WCS below WTI in USD.
+
+Value estimates
+- To estimate production value, total the volumes by month first, then attach that month's price. Convert oil to barrels before applying a per-barrel price. For heavy or oil sands oil, WCS is usually the appropriate benchmark; WTI is the light-oil reference. Gas value at AECO requires energy in GJ, so use the Energy column rather than volume.
+- Always label these as estimates based on benchmark prices, not realized revenue. If a requested month has no price, say so rather than filling it in.
+
+Names and identifiers
+- Operators are identified by a BA ID. Names can vary slightly over time, so group by BA ID when accuracy matters and show the name for readability.
+- Facility IDs combine province, facility type code and number (for example, a battery ID starts with ABBT). Well IDs are Petrinex UWIs.
+- In the wells table, the field name column holds a numeric field code. Use the field display name column for readable field names. Use field_codes only to translate codes when the display name is missing.
+- Formation "Other" and "Miscellaneous" are catch-all groupings, not specific geological formations. Mention this when they appear in rankings.
+
+Answer style
+- State the production month range and units in every answer. When ranking, show both the native unit and a daily rate if the user asks about rates. If the latest month looks low, mention that recent Petrinex months may still be revised.

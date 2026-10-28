@@ -40,7 +40,7 @@ re-grants it automatically after every data reload. Its compute bills while runn
 ## Ask Genie
 
 The **✦ Ask Genie** button opens a chat with the Databricks Genie space *CNRL Acquisition Explorer - Petrinex Genie*
-(id in `genie_space.json`; definition in `../genie/spec.py`, built from `Genie.md` + `sbx_prompts.txt`).
+(id in `genie_space.json`; definition in `../genie/spec.py`, built from `ref/Genie.md` + `ref/sbx_prompts.txt`).
 
 - Whatever is selected on the map is attached as a **Map context** block: lassoed CNRL facility IDs, nearby competitor
   operators (BA IDs), the facility open in the details panel, ticked wells and a focused operator. Untick

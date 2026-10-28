@@ -1,6 +1,6 @@
 """Genie space definition for the CNRL Acquisition Explorer.
 
-Built from Genie.md (instructions, joins, snippets, examples, benchmarks) and sbx_prompts.txt (purpose),
+Built from ref/Genie.md (instructions, joins, snippets, examples, benchmarks) and ref/sbx_prompts.txt (purpose),
 repointed at the shm_hack catalog and extended with the acquisition tables, the data caveats verified while
 building the pipeline, and the "Map context" convention the app uses to pass lassoed assets to Genie.
 scripts/genie_space.py turns this into Genie's serialized format and creates/updates the space.
