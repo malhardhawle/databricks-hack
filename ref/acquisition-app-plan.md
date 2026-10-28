@@ -2,7 +2,7 @@
 
 **Brief:** acting as CNRL executives, find the next best acquisition. Rank candidates by ROCE / accretion at a 15% discount rate, with proximity to existing CNRL assets as the secondary criterion. Compare transport-cost savings for the top 3. Ship a Lakebase-backed map app where you lasso CNRL assets and get a table of the nearest competitor assets' oil, gas and NGL production.
 
-Data: `shm_hack.petrinex` (the brief says `sbx_petrinex_app`, which doesn't exist in this workspace; same 8 tables). See [eda-report.html](eda-report.html) and [../.claude/data/](../.claude/data/) for the traps.
+Data: `shm_hack.petrinex` (the brief says `sbx_petrinex_app`, which doesn't exist in this workspace; same 8 tables). **All data comes from the `shm_hack` catalog. No external sources.** Anything Petrinex lacks is an explicit, editable assumption, stored in `shm_hack.acq.assumptions`. See [eda-report.html](eda-report.html) and [../.claude/data/](../.claude/data/) for the traps.
 
 ---
 
@@ -28,9 +28,9 @@ Data: `shm_hack.petrinex` (the brief says `sbx_petrinex_app`, which doesn't exis
 - 2025 prices (WTI, WCS, AECO, FX).
 
 **Can't, so it needs explicit, adjustable assumptions**
-- **Capital employed / acquisition price**: Petrinex has no financials, and `public_market` is not accessible to us. Proxy: price = $/flowing boe/d multiple (or the seller's PV10).
+- **Capital employed / acquisition price**: Petrinex has no financials. Proxy: price = $/flowing boe/d multiple (or the seller's PV10).
 - **Opex, G&A, tax**: assumed $/boe by product mix.
-- **Pipelines**: none in the dataset. Proxy: CNRL gas plants, gathering systems and batteries are the tie-in points. Optionally load AER pipeline data if we can get it.
+- **Pipelines**: none in the dataset. Proxy: CNRL gas plants, gathering systems and batteries are the tie-in points, and the `DISP` flow edges show the existing transport network.
 - **Transport tariffs**: assumed trucking $/m³/km and pipeline $/boe.
 - **Forward prices**: `market_prices` overlaps 2025 only, so use a flat 2025-average deck (editable).
 
@@ -133,10 +133,10 @@ Steps 1→3 are the critical path. Scoring (step 4) can run in parallel once `op
 
 | # | Question | Default if unanswered |
 |---|---|---|
-| Q1 | Acquisition price basis: $/flowing boe/d multiple, seller PV10, or real EV data? Rank primarily on ROCE or on NPV accretion? | $45k/boe/d; rank on NPV@15% accretion, show ROCE alongside |
+| Q1 | Acquisition price basis: $/flowing boe/d multiple or seller PV10? Rank primarily on ROCE or on NPV accretion? | $45k/boe/d; rank on NPV@15% accretion, show ROCE alongside |
 | Q2 | Candidate = whole operator (corporate) or asset package near CNRL? | Operator, with an "assets within 25 km" view |
 | Q3 | Minimum size / exclusions (majors like Cenovus, Suncor, Imperial are not realistic targets) | ≥1,000 boe/d, exclude top-5 producers |
-| Q4 | Pipelines: proxy with CNRL facilities, or source AER pipeline data? | Proxy |
+| Q4 | Pipeline proxy: which CNRL facility types count as tie-in points for oil vs gas? | Gas → gas plants + gathering systems; oil → batteries + injection |
 | Q5 | Cost assumptions: opex $/boe by mix, trucking $/m³/km, tax rate, forward price deck | As in §3.3–3.5, editable in the app |
 | Q6 | Lasso result: radius (km) or k-nearest? Production window (2025 avg vs last 3 months)? | 25 km radius, 2025 average |
 | Q7 | Catalog: confirm `shm_hack.petrinex` (the brief says `sbx_petrinex_app`) | `shm_hack.petrinex` |

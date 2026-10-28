@@ -13,6 +13,7 @@ Read these before writing queries:
 - [.claude/data/eda-findings.md](.claude/data/eda-findings.md): what the data looks like and analysis ideas
 
 ## Must-know rules
+- **All data must come from the `shm_hack` catalog.** Don't read or pull in data from other catalogs or external sources. Write derived tables to `shm_hack` (e.g. `shm_hack.acq`). Values Petrinex lacks (costs, acquisition multiples) are explicit assumptions, stored in a table in `shm_hack`.
 - `volumetrics` and `ngl_volumes` are **all STRING**. Wrap numerics in `try_cast(... AS DOUBLE)`.
 - Production = `ActivityID = 'PROD'`. Never sum `Volume` across activities, because that double-counts.
 - Units: liquids m³, gas e³m³, energy GJ.
