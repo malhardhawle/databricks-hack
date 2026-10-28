@@ -1,5 +1,6 @@
 """FastAPI backend for the CNRL acquisition explorer: /api/* over Lakebase, plus the built React app."""
 import json
+import mimetypes
 from pathlib import Path
 from typing import Any, Literal
 
@@ -13,6 +14,9 @@ from pydantic import BaseModel, Field
 import genie
 import queries
 import scoring as sc
+
+# Module workers (MapLibre's .mjs tile worker) must be served as JavaScript; older Pythons don't know .mjs.
+mimetypes.add_type("text/javascript", ".mjs")
 
 app = FastAPI(title="CNRL Acquisition Explorer")
 app.add_middleware(GZipMiddleware, minimum_size=1000)

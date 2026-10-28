@@ -3,14 +3,20 @@ import DeckGL, { type DeckGLRef } from '@deck.gl/react'
 import { ScatterplotLayer } from '@deck.gl/layers'
 import { WebMercatorViewport, type MapViewState } from '@deck.gl/core'
 import { Map } from 'react-map-gl/maplibre'
+import { setWorkerUrl } from 'maplibre-gl'
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { api, type Candidate, type Facility, type MapContext, type NearbyRequest, type NearbyResponse } from '../api'
 import { compact, dec, int, km } from '../format'
 import { DataTable, type Column } from './DataTable'
 import { FacilityDetails } from './FacilityDetails'
 
+// MapLibre 6 looks for its tile worker next to its own module, which bundling breaks ("Worker failed to load",
+// blank basemap). Ship the self-contained worker as a build asset and point MapLibre at it explicitly.
+setWorkerUrl(maplibreWorkerUrl)
+
 // Basemap tiles are imagery only; every number on screen comes from shm_hack via Lakebase.
-const BASEMAP = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
+const BASEMAP = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
 // Centred east of Alberta's middle so the control panel doesn't cover the western plays.
 const INITIAL_VIEW: MapViewState = { longitude: -114.2, latitude: 54.6, zoom: 4.9, pitch: 0, bearing: 0 }
 const CLICK_SLOP_PX = 4
