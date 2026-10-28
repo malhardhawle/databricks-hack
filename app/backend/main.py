@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+import genie
 import queries
 import scoring as sc
 
@@ -65,6 +66,32 @@ def facility(facility_id: str):
     if row is None:
         raise HTTPException(404, f"unknown facility: {facility_id}")
     return records(row.to_frame().T)[0]
+
+
+@app.get("/api/facility/{facility_id}/wells")
+def facility_wells(facility_id: str):
+    return records(queries.wells_at(facility_id))
+
+
+@app.get("/api/genie/info")
+def genie_info():
+    return genie.info()
+
+
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    conversation_id: str | None = None
+    context: genie.MapContext | None = None
+
+
+@app.post("/api/genie/ask")
+def genie_ask(req: AskRequest):
+    if not genie.SPACE_ID:
+        raise HTTPException(503, "No Genie space configured (run scripts/genie_space.py)")
+    try:
+        return genie.ask(req.question, req.conversation_id, req.context)
+    except Exception as e:  # surface Genie/API failures to the UI instead of a bare 500
+        raise HTTPException(502, f"Genie request failed: {e}")
 
 
 class NearbyRequest(BaseModel):

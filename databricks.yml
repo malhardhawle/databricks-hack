@@ -5,6 +5,14 @@
 bundle:
   name: cnrl-acquisition-explorer
 
+variables:
+  genie_space_id:
+    description: Genie space created by scripts/genie_space.py (also recorded in app/genie_space.json)
+    default: 01f1d2fee6fd12abbd56ed699d055599
+  warehouse_id:
+    description: SQL warehouse the Genie space runs its queries on
+    default: 42b00ac711df45f6
+
 sync:
   include:
     - app/frontend/dist/**
@@ -22,6 +30,17 @@ resources:
             instance_name: cnrl-acq
             database_name: acq
             permission: CAN_CONNECT_AND_CREATE
+        - name: genie-space
+          description: Genie agent behind the Ask Genie panel
+          genie_space:
+            name: CNRL Acquisition Explorer - Petrinex Genie
+            space_id: ${var.genie_space_id}
+            permission: CAN_RUN
+        - name: sql-warehouse
+          description: Warehouse Genie runs its SQL on
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
 
 targets:
   prod:

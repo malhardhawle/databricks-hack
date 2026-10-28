@@ -102,6 +102,38 @@ def test_facility_details(client, monkeypatch):
     assert client.get("/api/facility/NOPE").status_code == 404
 
 
+def test_facility_wells(client, monkeypatch):
+    rows = pd.DataFrame([{"well_id": "ABWI1", "total_gas_e3m3": 10.0}])
+    monkeypatch.setattr(queries, "wells_at", lambda fid: rows if fid == "F1" else rows.iloc[0:0])
+    assert client.get("/api/facility/F1/wells").json() == [{"well_id": "ABWI1", "total_gas_e3m3": 10.0}]
+    assert client.get("/api/facility/F2/wells").json() == []
+
+
+def test_genie_ask_passes_context(client, monkeypatch):
+    seen = {}
+
+    def fake_ask(question, conversation_id, ctx):
+        seen.update(question=question, conversation_id=conversation_id, ctx=ctx)
+        return {"text": "ok", "sent": main.genie.compose(question, ctx)}
+
+    monkeypatch.setattr(main.genie, "SPACE_ID", "space1")
+    monkeypatch.setattr(main.genie, "ask", fake_ask)
+    body = client.post("/api/genie/ask", json={
+        "question": "Who is nearby?", "conversation_id": "c1",
+        "context": {"cnrl_facility_ids": ["ABGP1"], "well_ids": ["ABWI1"],
+                    "focused_facility": {"id": "ABBT1", "name": "Pad"}},
+    }).json()
+    assert seen["conversation_id"] == "c1"
+    assert seen["ctx"].cnrl_facility_ids == ["ABGP1"]
+    assert body["sent"].startswith("Map context")
+    assert body["sent"].endswith("Question: Who is nearby?")
+
+
+def test_genie_ask_without_space(client, monkeypatch):
+    monkeypatch.setattr(main.genie, "SPACE_ID", None)
+    assert client.post("/api/genie/ask", json={"question": "hi"}).status_code == 503
+
+
 @pytest.mark.parametrize("payload", [
     {"cnrl_ids": []},
     {"cnrl_ids": ["C1"], "window": "2024"},

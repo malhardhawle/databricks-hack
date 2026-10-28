@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { api, type Assumption, type Facility, type Precedent, type RankResponse } from './api'
+import { useCallback, useEffect, useState } from 'react'
+import { api, EMPTY_CONTEXT, type Assumption, type Facility, type MapContext, type Precedent, type RankResponse } from './api'
+import { GeniePanel } from './components/GeniePanel'
 import { MapView } from './components/MapView'
 import { PrecedentsView } from './components/PrecedentsView'
 import { RankingView } from './components/RankingView'
@@ -23,6 +24,10 @@ export default function App() {
   const [rankLoading, setRankLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [focusOperator, setFocusOperator] = useState<string | null>(null)
+  const [genieOpen, setGenieOpen] = useState(false)
+  const [geniePrefill, setGeniePrefill] = useState<string | null>(null)
+  const [mapContext, setMapContext] = useState<MapContext>(EMPTY_CONTEXT)
+  const [selectedWells, setSelectedWells] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     Promise.all([api.facilities(), api.assumptions(), api.precedents()])
@@ -51,11 +56,23 @@ export default function App() {
       return next
     })
 
+  const setWells = useCallback((ids: string[], on: boolean) =>
+    setSelectedWells(prev => {
+      const next = new Set(prev)
+      for (const id of ids) {
+        if (on) next.add(id)
+        else next.delete(id)
+      }
+      return next
+    }), [])
+
+  const askGenie = useCallback((question: string) => { setGeniePrefill(question); setGenieOpen(true) }, [])
+  const clearPrefill = useCallback(() => setGeniePrefill(null), [])
   const showOnMap = (baid: string) => { setFocusOperator(baid); setTab('map') }
   const radius = Number(assumptions.find(a => a.key === 'lasso_radius_km')?.value ?? 25)
 
   return (
-    <div className="app">
+    <div className={`app ${genieOpen ? 'genie-open' : ''}`}>
       <header className="topbar">
         <div className="brand">
           <h1>CNRL Acquisition Explorer</h1>
@@ -71,30 +88,48 @@ export default function App() {
             Top pick <b>{rank.candidates[0]?.operator_name}</b>
           </div>
         )}
+        <button className={`btn genie-btn ${genieOpen ? 'on' : ''}`} onClick={() => setGenieOpen(o => !o)}>✦ Ask Genie</button>
       </header>
       {error && <div className="banner error">{error}</div>}
-      <main>
-        {tab === 'map' && (facilities ? (
-          <MapView
-            facilities={facilities}
-            candidates={rank?.candidates ?? []}
-            tariffs={{
-              liq: Number(rank?.assumptions.liq_tariff_per_m3_km ?? 0),
-              gas: Number(rank?.assumptions.gas_tariff_per_e3m3_km ?? 0),
-            }}
-            top3Baids={rank?.top3.candidates.map(c => c.operator_baid) ?? []}
-            focusOperator={focusOperator}
-            onFocusOperator={setFocusOperator}
-            defaultRadius={radius}
-          />
-        ) : <p className="loading">Loading 25,316 facilities from Lakebase…</p>)}
-        {tab === 'ranking' && (
-          <RankingView rank={rank} loading={rankLoading} assumptions={assumptions} overrides={overrides}
-            onOverride={setOverride} onReset={() => setOverrides({})} onShowOnMap={showOnMap} />
-        )}
-        {tab === 'top3' && <Top3View rank={rank} onShowOnMap={showOnMap} />}
-        {tab === 'precedents' && <PrecedentsView precedents={precedents} rank={rank} />}
-      </main>
+      <div className="body">
+        <main>
+          {/* The map stays mounted so the lasso selection survives tab switches (and stays available to Genie). */}
+          <div className="tab-pane" hidden={tab !== 'map'}>
+            {facilities ? (
+              <MapView
+                facilities={facilities}
+                candidates={rank?.candidates ?? []}
+                tariffs={{
+                  liq: Number(rank?.assumptions.liq_tariff_per_m3_km ?? 0),
+                  gas: Number(rank?.assumptions.gas_tariff_per_e3m3_km ?? 0),
+                }}
+                top3Baids={rank?.top3.candidates.map(c => c.operator_baid) ?? []}
+                focusOperator={focusOperator}
+                onFocusOperator={setFocusOperator}
+                defaultRadius={radius}
+                selectedWells={selectedWells}
+                onSetWells={setWells}
+                onContextChange={setMapContext}
+                onAskGenie={askGenie}
+              />
+            ) : <p className="loading">Loading 25,316 facilities from Lakebase…</p>}
+          </div>
+          {tab === 'ranking' && (
+            <RankingView rank={rank} loading={rankLoading} assumptions={assumptions} overrides={overrides}
+              onOverride={setOverride} onReset={() => setOverrides({})} onShowOnMap={showOnMap} />
+          )}
+          {tab === 'top3' && <Top3View rank={rank} onShowOnMap={showOnMap} />}
+          {tab === 'precedents' && <PrecedentsView precedents={precedents} rank={rank} />}
+        </main>
+        <GeniePanel
+          open={genieOpen}
+          onClose={() => setGenieOpen(false)}
+          context={mapContext}
+          onClearWells={() => setSelectedWells(new Set())}
+          prefill={geniePrefill}
+          onPrefillUsed={clearPrefill}
+        />
+      </div>
     </div>
   )
 }

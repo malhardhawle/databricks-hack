@@ -193,6 +193,50 @@ export type RankResponse = {
   }
 }
 
+export type Well = {
+  well_id: string
+  field_display_name: string | null
+  formation: string | null
+  active_months: number | null
+  total_oil_m3: number | null
+  total_gas_e3m3: number | null
+  total_condensate_m3: number | null
+  total_water_m3: number | null
+  first_production_month: string | null
+  last_production_month: string | null
+}
+
+/** What the map hands to Genie as context; mirrors genie.MapContext in the backend. */
+export type MapContext = {
+  cnrl_facility_ids: string[]
+  radius_km: number | null
+  competitor_operators: { baid: string; name: string; boe_d: number | null }[]
+  focused_facility: { id: string; name: string | null; operator_baid: string; operator_name: string } | null
+  well_ids: string[]
+  focused_operator: { baid: string; name: string } | null
+}
+
+export const EMPTY_CONTEXT: MapContext = {
+  cnrl_facility_ids: [], radius_km: null, competitor_operators: [], focused_facility: null, well_ids: [], focused_operator: null,
+}
+
+export type GenieInfo = { space_id: string | null; title: string | null; url: string | null; sample_questions: string[] }
+
+export type GenieAnswer = {
+  conversation_id: string
+  message_id: string
+  status: string | null
+  text: string | null
+  sql: string | null
+  sql_description: string | null
+  columns: string[]
+  rows: (string | null)[][]
+  row_count: number
+  suggested_questions: string[]
+  error: string | null
+  sent: string
+}
+
 async function request<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, body === undefined ? undefined : {
     method: 'POST',
@@ -209,6 +253,10 @@ export const api = {
     return rows.map(r => Object.fromEntries(columns.map((c, i) => [c, r[i]])) as Facility)
   },
   facility: (id: string) => request<FacilityDetail>(`/api/facility/${encodeURIComponent(id)}`),
+  wells: (id: string) => request<Well[]>(`/api/facility/${encodeURIComponent(id)}/wells`),
+  genieInfo: () => request<GenieInfo>('/api/genie/info'),
+  genieAsk: (question: string, conversation_id: string | null, context: MapContext | null) =>
+    request<GenieAnswer>('/api/genie/ask', { question, conversation_id, context }),
   nearby: (req: NearbyRequest) => request<NearbyResponse>('/api/nearby', req),
   assumptions: () => request<Assumption[]>('/api/assumptions'),
   precedents: () => request<Precedent[]>('/api/precedents'),

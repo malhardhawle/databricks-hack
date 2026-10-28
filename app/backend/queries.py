@@ -23,6 +23,18 @@ def facility(facility_id):
     return df.iloc[0] if len(df) else None
 
 
+def wells_at(facility_id):
+    """Wells reporting to a facility (from ngl_volumes-based wells), biggest lifetime boe first."""
+    return query("""
+        SELECT well_id, field_display_name, formation, active_months, total_oil_m3, total_gas_e3m3,
+               total_condensate_m3, total_water_m3, first_production_month, last_production_month
+        FROM wells
+        WHERE facility_id = %(id)s
+        ORDER BY coalesce(total_oil_m3, 0) * 6.2898 + coalesce(total_condensate_m3, 0) * 6.2898
+                 + coalesce(total_gas_e3m3, 0) * 35.3147 / 6 DESC
+    """, {"id": facility_id})
+
+
 def operator_metrics():
     return query("SELECT * FROM operator_metrics")
 

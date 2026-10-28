@@ -1,0 +1,11 @@
+{
+  "space_id": "01f1d2fee6fd12abbd56ed699d055599",
+  "title": "CNRL Acquisition Explorer - Petrinex Genie",
+  "sample_questions": [
+    "Which operators have the most production within 25 km of CNRL facilities?",
+    "What did CNRL acquire in 2024 and 2025, and how big were those deals?",
+    "Which 10 operators produced the most oil in 2025, in barrels per day?",
+    "What was monthly Alberta gas production in 2025 in MMcf/d?",
+    "Which operators flared the most gas in 2025?"
+  ]
+}

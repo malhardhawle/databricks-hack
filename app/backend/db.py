@@ -22,13 +22,13 @@ if "DATABRICKS_CLIENT_ID" not in os.environ:  # not running as a Databricks App
 INSTANCE = os.environ.get("LAKEBASE_INSTANCE", "cnrl-acq")
 TOKEN_TTL_SECONDS = 30 * 60
 
-_ws = WorkspaceClient()
+ws = WorkspaceClient()
 _token = {"value": None, "issued": 0.0}
 
 
 def _get_token():
     if time.time() - _token["issued"] > TOKEN_TTL_SECONDS:
-        cred = _ws.database.generate_database_credential(request_id=str(uuid.uuid4()), instance_names=[INSTANCE])
+        cred = ws.database.generate_database_credential(request_id=str(uuid.uuid4()), instance_names=[INSTANCE])
         _token.update(value=cred.token, issued=time.time())
     return _token["value"]
 
@@ -41,8 +41,8 @@ class OAuthConnection(psycopg.Connection):
 
 
 def _conninfo():
-    host = os.environ.get("PGHOST") or _ws.database.get_database_instance(INSTANCE).read_write_dns
-    user = os.environ.get("PGUSER") or _ws.current_user.me().user_name
+    host = os.environ.get("PGHOST") or ws.database.get_database_instance(INSTANCE).read_write_dns
+    user = os.environ.get("PGUSER") or ws.current_user.me().user_name
     return (f"host={host} port={os.environ.get('PGPORT', '5432')} "
             f"dbname={os.environ.get('PGDATABASE', 'acq')} user={user} "
             f"sslmode={os.environ.get('PGSSLMODE', 'require')}")

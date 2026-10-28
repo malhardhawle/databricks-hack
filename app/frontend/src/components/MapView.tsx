@@ -4,7 +4,7 @@ import { ScatterplotLayer } from '@deck.gl/layers'
 import { WebMercatorViewport, type MapViewState } from '@deck.gl/core'
 import { Map } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { api, type Candidate, type Facility, type NearbyRequest, type NearbyResponse } from '../api'
+import { api, type Candidate, type Facility, type MapContext, type NearbyRequest, type NearbyResponse } from '../api'
 import { compact, dec, int, km } from '../format'
 import { DataTable, type Column } from './DataTable'
 import { FacilityDetails } from './FacilityDetails'
@@ -55,9 +55,14 @@ type Props = {
   focusOperator: string | null
   onFocusOperator: (baid: string | null) => void
   defaultRadius: number
+  selectedWells: Set<string>
+  onSetWells: (ids: string[], on: boolean) => void
+  onContextChange: (ctx: MapContext) => void
+  onAskGenie: (question: string) => void
 }
 
-export function MapView({ facilities, candidates, tariffs, top3Baids, focusOperator, onFocusOperator, defaultRadius }: Props) {
+export function MapView({ facilities, candidates, tariffs, top3Baids, focusOperator, onFocusOperator, defaultRadius,
+  selectedWells, onSetWells, onContextChange, onAskGenie }: Props) {
   const deckRef = useRef<DeckGLRef>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const drag = useRef<Drag | null>(null)
@@ -121,6 +126,22 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
     }, 250)
     return () => { stale = true; clearTimeout(t) }
   }, [selected, params])
+
+  // Everything currently selected on the map, for Genie.
+  useEffect(() => {
+    const detail = detailId ? facilities.find(f => f.facility_id === detailId) : undefined
+    const focusName = focusOperator ? facilities.find(f => f.operator_baid === focusOperator)?.operator_name : undefined
+    onContextChange({
+      cnrl_facility_ids: [...selected],
+      radius_km: params.mode === 'radius' ? params.radius_km : null,
+      competitor_operators: (result?.operators ?? []).map(o => ({ baid: o.operator_baid, name: o.operator_name, boe_d: o.boe_d })),
+      focused_facility: detail
+        ? { id: detail.facility_id, name: detail.facility_name, operator_baid: detail.operator_baid, operator_name: detail.operator_name }
+        : null,
+      well_ids: [...selectedWells],
+      focused_operator: focusOperator && focusName ? { baid: focusOperator, name: focusName } : null,
+    })
+  }, [selected, params.mode, params.radius_km, result, detailId, selectedWells, focusOperator, facilities, onContextChange])
 
   // ---------- mouse: left-drag lasso, left-click details, right/middle/ctrl-drag pan, wheel zoom ----------
 
@@ -412,6 +433,9 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
             onFindNearby={id => setSelected(new Set([id]))}
             onToggleSelect={toggleSelect}
             onFocusOperator={baid => onFocusOperator(baid)}
+            selectedWells={selectedWells}
+            onSetWells={onSetWells}
+            onAskGenie={onAskGenie}
           />
         )}
       </div>

@@ -26,17 +26,25 @@ DATABASE = os.environ.get("LAKEBASE_DB", "acq")
 PROFILE = os.environ.get("DATABRICKS_CONFIG_PROFILE", "hack")
 APP_NAME = os.environ.get("APP_NAME", "cnrl-acquisition-explorer")
 
+# table -> (UC schema, primary key, columns to copy; None = all)
 TABLES = {
-    "facility_summary": ["facility_id"],
-    "operator_metrics": ["operator_baid"],
-    "cnrl_footprint": ["facility_id"],
-    "deal_precedents": ["seller_baid"],
-    "assumptions": ["key"],
+    "facility_summary": ("acq", ["facility_id"], None),
+    "operator_metrics": ("acq", ["operator_baid"], None),
+    "cnrl_footprint": ("acq", ["facility_id"], None),
+    "deal_precedents": ("acq", ["seller_baid"], None),
+    "assumptions": ("acq", ["key"], None),
+    # Wells per facility for the details panel (and to hand well IDs to Genie).
+    "wells": ("petrinex", ["well_id"], [
+        "well_id", "facility_id", "operator_baid", "operator_name", "field_display_name", "formation",
+        "active_months", "total_oil_m3", "total_gas_e3m3", "total_condensate_m3", "total_water_m3",
+        "first_production_month", "last_production_month",
+    ]),
 }
 INDEXES = [
     "CREATE INDEX ON facility_summary (is_cnrl)",
     "CREATE INDEX ON facility_summary (lat, lon)",
     "CREATE INDEX ON facility_summary (operator_baid)",
+    "CREATE INDEX ON wells (facility_id)",
 ]
 PG_TYPES = {"STRING": "text", "DOUBLE": "double precision", "FLOAT": "real", "BIGINT": "bigint",
             "INT": "integer", "BOOLEAN": "boolean", "DATE": "date"}
@@ -74,10 +82,11 @@ def load():
             print(f"created database {DATABASE}")
 
     with connect(DATABASE) as conn:
-        for table, pk in TABLES.items():
+        for table, (schema, pk, keep) in TABLES.items():
             _, cols = query(f"""SELECT column_name, data_type FROM {CATALOG}.information_schema.columns
-                               WHERE table_schema = 'acq' AND table_name = '{table}' ORDER BY ordinal_position""")
-            names, rows = query(f"SELECT * FROM {CATALOG}.acq.{table}")
+                               WHERE table_schema = '{schema}' AND table_name = '{table}' ORDER BY ordinal_position""")
+            cols = [(c, t) for c, t in cols if (keep is None and c != "_rescued_data") or (keep and c in keep)]
+            names, rows = query(f"SELECT {', '.join(c for c, _ in cols)} FROM {CATALOG}.{schema}.{table}")
             ddl = ", ".join(f'"{c}" {pg_type(t)}' for c, t in cols)
             conn.execute(f'DROP TABLE IF EXISTS "{table}"')
             conn.execute(f'CREATE TABLE "{table}" ({ddl}, PRIMARY KEY ({", ".join(pk)}))')

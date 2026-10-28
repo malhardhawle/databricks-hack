@@ -27,6 +27,7 @@ CNRL acquisition explorer. The spec is [ref/perfect-prompt.md](ref/perfect-promp
 - Scoring logic: `app/backend/scoring.py`. How to run the app locally: [app/README.md](app/README.md) (backend :8000, Vite :5173).
 - Lakebase: instance `cnrl-acq` (CU_1, ours), database `acq`, loaded by `scripts/load_lakebase.py`. It bills while running.
 - Deployed as Databricks App `cnrl-acquisition-explorer` via `databricks.yml` (Asset Bundle); steps in [app/README.md](app/README.md). Build the frontend before `bundle deploy`.
+- Genie space "CNRL Acquisition Explorer - Petrinex Genie" (`app/genie_space.json`): definition in `genie/spec.py`, published by `scripts/genie_space.py` (`--validate` runs every example SQL first). The app's Ask Genie panel sends map selections as a "Map context" block (`app/backend/genie.py`).
 - Tests: `.venv/Scripts/python -m pytest` (unit). `RUN_DATABRICKS_TESTS=1 ... -m databricks` adds read-only warehouse data checks.
 
 ## Reference material

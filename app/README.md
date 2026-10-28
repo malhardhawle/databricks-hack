@@ -37,6 +37,25 @@ The app reads Lakebase as its own service principal (database resource `cnrl-acq
 re-grants it automatically after every data reload. Its compute bills while running; stop it with
 `databricks -p hack apps stop cnrl-acquisition-explorer`.
 
+## Ask Genie
+
+The **✦ Ask Genie** button opens a chat with the Databricks Genie space *CNRL Acquisition Explorer - Petrinex Genie*
+(id in `genie_space.json`; definition in `../genie/spec.py`, built from `Genie.md` + `sbx_prompts.txt`).
+
+- Whatever is selected on the map is attached as a **Map context** block: lassoed CNRL facility IDs, nearby competitor
+  operators (BA IDs), the facility open in the details panel, ticked wells and a focused operator. Untick
+  "Attach map context" to ask without it.
+- Tick wells in a facility's details panel, then **Ask Genie about this well selection**.
+- Answers show Genie's summary, the result table (CSV export), the SQL it ran and follow-up suggestions.
+
+Update the space after editing `genie/spec.py`:
+```bash
+.venv/Scripts/python scripts/genie_space.py --validate   # run every example/benchmark SQL first
+.venv/Scripts/python scripts/genie_space.py              # update the space in place
+```
+The deployed app reaches Genie as its service principal through the `genie-space` (CAN_RUN) and `sql-warehouse`
+(CAN_USE) resources in `databricks.yml`.
+
 ## Map controls
 
 | Action | Does |
