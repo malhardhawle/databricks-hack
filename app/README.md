@@ -21,6 +21,22 @@ Open http://localhost:5173.
 
 To serve the built app from FastAPI alone (as it will run on Databricks Apps): run `npm run build` in `app/frontend`, then start the backend and open http://localhost:8000.
 
+## Deploy (Databricks Apps)
+
+Live at https://cnrl-acquisition-explorer-7808899982160538.18.azure.databricksapps.com (workspace sign-in required).
+The app is defined in `../databricks.yml` (Asset Bundle) and runs `backend/serve.py`, which serves `frontend/dist` too.
+
+```bash
+cd app/frontend && npm run build && cd ../..                    # dist/ is gitignored but the bundle syncs it
+databricks bundle deploy -p hack                                # create/update the app, upload ./app
+databricks bundle run cnrl_acquisition_explorer -p hack         # deploy the uploaded source and (re)start
+.venv/Scripts/python scripts/load_lakebase.py --grant-only      # first deploy only: let the app SP read the tables
+```
+
+The app reads Lakebase as its own service principal (database resource `cnrl-acq` / `acq`). `load_lakebase.py`
+re-grants it automatically after every data reload. Its compute bills while running; stop it with
+`databricks -p hack apps stop cnrl-acquisition-explorer`.
+
 ## Map controls
 
 | Action | Does |

@@ -26,6 +26,7 @@ CNRL acquisition explorer. The spec is [ref/perfect-prompt.md](ref/perfect-promp
 - `python scripts/run_pipeline.py --dry-run -q "SELECT ... FROM {acq}.<table>"` checks pipeline output read-only (every table as a CTE). Without `--dry-run` it creates the tables.
 - Scoring logic: `app/backend/scoring.py`. How to run the app locally: [app/README.md](app/README.md) (backend :8000, Vite :5173).
 - Lakebase: instance `cnrl-acq` (CU_1, ours), database `acq`, loaded by `scripts/load_lakebase.py`. It bills while running.
+- Deployed as Databricks App `cnrl-acquisition-explorer` via `databricks.yml` (Asset Bundle); steps in [app/README.md](app/README.md). Build the frontend before `bundle deploy`.
 - Tests: `.venv/Scripts/python -m pytest` (unit). `RUN_DATABRICKS_TESTS=1 ... -m databricks` adds read-only warehouse data checks.
 
 ## Reference material
