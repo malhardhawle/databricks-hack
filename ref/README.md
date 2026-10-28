@@ -1,0 +1,11 @@
+# ref/
+
+Reference material for the project: anything we add that explains the data or the domain, rather than code.
+
+| File | What it is |
+|---|---|
+| [acquisition-app-plan.md](acquisition-app-plan.md) | Plan for the CNRL acquisition app: method (ROCE / NPV@15%, proximity, transport savings), data pipeline, Lakebase + Dash app design, build order, open decisions. |
+| [eda-report.html](eda-report.html) | EDA of `shm_hack.petrinex`: table catalog, production trends, operators, emissions, shut-ins, prices, join coverage, data-quality traps. Open it in a browser; it is self-contained. |
+
+Put new reference data here, such as code lookups, Petrinex/AER docs, price files and notes, and add a row above for each one.
+Query-writing rules for Claude live in [../.claude/data/](../.claude/data/).

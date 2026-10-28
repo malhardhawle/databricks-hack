@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Petrinex EDA</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --meter-track: #cde2fb;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --code-bg: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --meter-track: #184f95;
+    --code-bg: #262624;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface-1: #1a1a19;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --meter-track: #184f95;
+  --code-bg: #262624;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 0 16px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 64px; }
+header h1 { font-size: 28px; line-height: 1.2; margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--text-secondary); max-width: 72ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 14px; color: var(--text-muted); font-size: 13px; }
+.meta b { color: var(--text-secondary); font-weight: 600; }
+nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 24px 0 8px; }
+nav a {
+  font-size: 13px; color: var(--text-secondary); text-decoration: none;
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-1);
+}
+nav a:hover { color: var(--text-primary); }
+
+section { margin-top: 40px; }
+section > h2 { font-size: 19px; margin: 0 0 4px; font-weight: 650; }
+section > .lede { margin: 0 0 16px; color: var(--text-secondary); max-width: 80ch; }
+
+.card {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 18px 12px; min-width: 0;
+}
+.card h3 { font-size: 14px; margin: 0; font-weight: 600; }
+.card .sub { font-size: 12.5px; color: var(--text-muted); margin: 2px 0 10px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 14px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; margin-top: 24px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.tile .label { font-size: 12.5px; color: var(--text-secondary); }
+.tile .value { font-size: 26px; font-weight: 620; margin-top: 2px; line-height: 1.2; }
+.tile .delta { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+.chart { width: 100%; position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart svg:focus { outline: 2px solid var(--series-1); outline-offset: 4px; border-radius: 4px; }
+.axis-text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.end-label { fill: var(--text-secondary); font-size: 11.5px; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 14px; height: 2px; border-radius: 1px; }
+
+.bars { display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: minmax(90px, 34%) 1fr; align-items: center; gap: 10px; border-radius: 4px; outline: none; }
+.bar-row:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+.bar-label { font-size: 12.5px; color: var(--text-secondary); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bar { height: 16px; background: var(--bar-color, var(--series-1)); border-radius: 0 4px 4px 0; min-width: 2px; transition: filter .12s; }
+.bar-row:hover .bar, .bar-row:focus-visible .bar { filter: brightness(1.12); }
+.bar-value { font-size: 12px; color: var(--text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+details.data { margin-top: 10px; border-top: 1px solid var(--grid); padding-top: 6px; }
+details.data summary { cursor: pointer; font-size: 12px; color: var(--text-muted); list-style: none; }
+details.data summary::before { content: "▸ "; }
+details.data[open] summary::before { content: "▾ "; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+
+.meter { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.meter-track { flex: 1; height: 8px; background: var(--meter-track); border-radius: 4px; overflow: hidden; }
+.meter-fill { height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; }
+
+.issues { display: grid; gap: 10px; }
+.issue { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: start; }
+.sev { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.sev i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.issue h4 { margin: 0; font-size: 13.5px; font-weight: 600; }
+.issue p { margin: 2px 0 0; color: var(--text-secondary); font-size: 13px; }
+@media (max-width: 520px) { .issue { grid-template-columns: 1fr; gap: 4px; } }
+
+.ideas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
+.ideas .card h3 { margin-bottom: 4px; }
+.ideas .card p { margin: 0 0 6px; color: var(--text-secondary); font-size: 13px; }
+
+.note { font-size: 12.5px; color: var(--text-secondary); background: var(--code-bg); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+
+#tip {
+  position: fixed; z-index: 10; pointer-events: none; min-width: 140px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12); padding: 8px 10px; font-size: 12px;
+}
+#tip .t { color: var(--text-muted); margin-bottom: 4px; }
+#tip .r { display: flex; align-items: center; gap: 8px; }
+#tip .r i { width: 12px; height: 2px; border-radius: 1px; flex: none; }
+#tip .r b { font-variant-numeric: tabular-nums; color: var(--text-primary); }
+#tip .r span { color: var(--text-secondary); }
+footer { margin-top: 48px; color: var(--text-muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Petrinex EDA</h1>
+  <p>Exploratory analysis of Alberta oil &amp; gas volumetric data loaded into <code>shm_hack.petrinex</code>: what's in it, what the numbers say, and where the traps are.</p>
+  <div class="meta">
+    <span><b>Source</b> Petrinex Public Data (Alberta)</span>
+    <span><b>Months</b> 2024-01 → 2025-12</span>
+    <span><b>Workspace</b> adb-7808899982160538</span>
+    <span><b>Run</b> 2026-10-28</span>
+  </div>
+</header>
+
+<div class="tiles" id="tiles"></div>
+
+<nav>
+  <a href="#tables">Tables</a><a href="#production">Production</a><a href="#composition">Composition</a>
+  <a href="#operators">Operators</a><a href="#emissions">Emissions</a><a href="#shutins">Shut-ins</a>
+  <a href="#prices">Prices</a><a href="#joins">Joins</a><a href="#quality">Data quality</a><a href="#ideas">Ideas</a>
+</nav>
+
+<section id="tables">
+  <h2>Table catalog</h2>
+  <p class="lede">Eight tables. <code>volumetrics</code> is the core fact table. The dimension tables are derived from it or from <code>ngl_volumes</code>, and their pre-computed totals need care (see Data quality).</p>
+  <div class="card"><div class="table-wrap"><table id="catalog"></table></div></div>
+</section>
+
+<section id="production">
+  <h2>Provincial production</h2>
+  <p class="lede"><code>volumetrics</code> where <code>ActivityID = 'PROD'</code>. Every PROD row is well-level (<code>FromToIDType = 'WI'</code>). Volumes are converted to daily rates so that short months like February don't look like dips.</p>
+  <div class="grid2">
+    <div class="card"><h3>Oil</h3><div class="sub">bbl/d · m³ × 6.2898 ÷ days</div><div class="chart" id="c-oil"></div></div>
+    <div class="card"><h3>Gas</h3><div class="sub">MMcf/d · e³m³ × 35.3147 ÷ days. Seasonal winter peaks</div><div class="chart" id="c-gas"></div></div>
+    <div class="card"><h3>Condensate</h3><div class="sub">bbl/d. Strongest growth of any product</div><div class="chart" id="c-cond"></div></div>
+    <div class="card"><h3>Produced water</h3><div class="sub">m³/d. About 4.5× oil by volume</div><div class="chart" id="c-water"></div></div>
+  </div>
+</section>
+
+<section id="composition">
+  <h2>What the rows are</h2>
+  <p class="lede">One facility-month spawns many rows: production, then disposition, receipt downstream, inventory, fuel and so on. That's why summing <code>Volume</code> across activities double-counts.</p>
+  <div class="grid2">
+    <div class="card"><h3>Rows by ActivityID</h3><div class="sub">volumetrics, 13.2M rows. <code>(null)</code> = proration-factor rows</div><div id="c-activity"></div></div>
+    <div class="card"><h3>Facilities by subtype</h3><div class="sub">Top 12 of the 25,316 reporting facilities</div><div id="c-subtype"></div></div>
+  </div>
+</section>
+
+<section id="operators">
+  <h2>Top operators</h2>
+  <p class="lede">Ranked by <b>PROD</b> volumes, averaged over the 731 days in the window. The <code>operators</code> table ranks them differently because its totals include every activity.</p>
+  <div class="grid2">
+    <div class="card"><h3>Oil producers</h3><div class="sub">Average bbl/d, 2024–2025</div><div id="c-op-oil"></div></div>
+    <div class="card"><h3>Gas producers</h3><div class="sub">Average MMcf/d, 2024–2025</div><div id="c-op-gas"></div></div>
+  </div>
+</section>
+
+<section id="emissions">
+  <h2>Flaring, venting &amp; fuel</h2>
+  <p class="lede"><code>facility_emissions</code>, which reconciles exactly with volumetrics FLARE/VENT/FUEL gas. Fuel is about 17× the flare volume, so it gets its own chart rather than a second axis.</p>
+  <div class="grid2">
+    <div class="card"><h3>Flared vs vented gas</h3><div class="sub">e³m³ per month</div><div class="chart" id="c-fv"></div></div>
+    <div class="card"><h3>Fuel gas</h3><div class="sub">e³m³ per month</div><div class="chart" id="c-fuel"></div></div>
+  </div>
+</section>
+
+<section id="shutins">
+  <h2>Shut-in wells</h2>
+  <p class="lede">Distinct wells reported with <code>ActivityID = 'SHUTIN'</code> each month.</p>
+  <div class="card"><h3>Shut-in wells</h3><div class="sub">count of distinct well IDs</div><div class="chart" id="c-shut"></div></div>
+</section>
+
+<section id="prices">
+  <h2>Market prices</h2>
+  <p class="lede"><code>market_prices</code> covers 2025-01 → 2026-02, so only the 2025 production months can be priced. It is not Petrinex data, and the values look rounded.</p>
+  <div class="grid2">
+    <div class="card"><h3>WTI vs WCS</h3><div class="sub">USD/bbl. The WCS discount holds steady at ~$12–15</div><div class="chart" id="c-oilpx"></div></div>
+    <div class="card"><h3>AECO gas</h3><div class="sub">CAD/GJ</div><div class="chart" id="c-aeco"></div></div>
+  </div>
+</section>
+
+<section id="joins">
+  <h2>Join coverage</h2>
+  <p class="lede">All month keys are <code>'YYYY-MM'</code> strings. Facility keys join cleanly; wells and fields are partial.</p>
+  <div class="card"><div class="table-wrap"><table id="joinsTbl"></table></div></div>
+</section>
+
+<section id="quality">
+  <h2>Data quality &amp; traps</h2>
+  <p class="lede">Read these before writing queries. They are also documented in <code>.claude/data/joins-and-gotchas.md</code>.</p>
+  <div class="card"><div class="issues" id="issues"></div></div>
+</section>
+
+<section id="ideas">
+  <h2>What this data can support</h2>
+  <div class="ideas" id="ideasGrid"></div>
+</section>
+
+<footer>Generated from queries against <code>shm_hack.petrinex</code> via <code>scripts/sql.py</code>. Units: liquids m³, gas e³m³, energy GJ.</footer>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+// ---------- data (query results, 2026-10-28) ----------
+const MONTHS = ["2024-01","2024-02","2024-03","2024-04","2024-05","2024-06","2024-07","2024-08","2024-09","2024-10","2024-11","2024-12",
+                "2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12"];
+const PROD = {
+  oil:   [11418586,10954107,11778089,11289060,11619959,11434154,11534975,11308146,10584435,12091052,11795907,12325048,12287086,10988070,12433039,11796134,11561140,11344861,12419808,12358598,11776378,12431142,12312563,12531657],
+  gas:   [13012412,11507890,11806324,11153152,11180338,10847990,11280320,11275937,10291442,11456125,11840958,12795049,13080044,12173751,12485515,11540142,11520077,10778614,11449821,11419283,11046318,11779394,12053140,13802741],
+  cond:  [341523,350193,369944,357482,373354,381313,417912,465092,446580,519736,482212,460006,412908,356706,392641,419271,438076,385043,416787,436136,425307,443279,479545,487398],
+  water: [55132146,52352423,55759690,53278934,53998023,52834855,53462974,52933887,49940576,55306328,54052670,56260879,56049417,50331751,56020880,53137963,52858316,51148323,54990786,54923615,52390739,54563722,53865681,55180134]
+};
+const EMIS = {
+  flare: [128109,113937,121492,121022,128809,130180,135797,130302,130521,129974,125999,117044,117154,110799,115861,114302,117448,117503,112930,118078,113128,114051,108666,116374],
+  vent:  [61760,46864,51271,36375,40208,38925,43409,45302,26070,30635,28791,33503,28827,26855,28947,27621,25712,21927,20555,20448,19089,22245,22827,22772],
+  fuel:  [2189833,2058420,2169217,2031911,2017545,1998991,2025187,2047172,1887697,2130649,2109317,2196544,2225312,1995818,2202396,2035852,2021037,1942338,2093040,2121745,1975472,2123432,2153415,2272614]
+};
+const SHUTIN = [13188,13425,13410,13903,14806,15159,15163,15426,15751,14748,14847,15377,15314,15543,15341,15123,15559,15811,15916,16614,16326,16405,15727,16233];
+const PX_MONTHS = ["2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02"];
+const PX = {
+  wti:  [73.96,71.45,68.24,62.15,61.73,69.35,74.82,73.15,69.90,71.25,69.50,71.80,74.25,72.60],
+  wcs:  [59.50,57.80,55.20,50.30,49.80,55.50,60.90,59.20,56.40,57.60,55.80,58.00,60.50,58.90],
+  aeco: [2.15,2.35,1.85,1.45,1.55,1.75,2.05,1.95,2.10,2.25,2.80,3.15,3.45,2.90]
+};
+const ACTIVITY = [["PROD",5867587],["DISP",1149822],["REC",815886],["DIFF",741531],["FUEL",691671],["VENT",668537],["ROYALTY",459932],
+  ["INVOP",412948],["INVCL",412560],["SHUTIN",402018],["IMBAL",299822],["INJ",271586],["(null)",193705],["LDREC",192461],["LDINVCL",147272],
+  ["LDINVOP",146138],["LDINJ",108496],["FLARE",77631],["SHR",54362],["PROC",53138]];
+const SUBTYPES = [["Crude oil single-well battery",5665],["Gas single-well battery",4568],["Gas multiwell group battery",2495],["Gas gathering system",2446],
+  ["Crude oil multiwell proration battery",2307],["Crude bitumen multiwell group battery",1524],["Crude bitumen single-well battery",1028],["Disposal",788],
+  ["Enhanced recovery scheme",752],["Crude oil multiwell group battery",556],["Gas multiwell proration outside SE AB",494],["Crude bitumen multiwell proration battery",427]];
+const DAYS_WINDOW = 731;
+const OP_OIL = [["Cenovus",58448154],["Canadian Natural",50068071],["Suncor",31612941],["Imperial",17829020],["ConocoPhillips Canada",15552552],
+  ["MEG Energy",11557380],["CNOOC Petroleum NA",8556671],["Strathcona",7543327],["Tamarack Valley",6158674],["Spur Petroleum",5386289]];
+const OP_GAS = [["Tourmaline",35698240],["Canadian Natural",35693567],["Cenovus",16503141],["Peyto",15072046],["ARC Resources",13750225],
+  ["Whitecap",9727256],["Ovintiv Canada",9347621],["Advantage",8519135],["Birchcliff",8514656],["NuVista",7632229]];
+
+// ---------- helpers ----------
+const SVGNS = "http://www.w3.org/2000/svg";
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const daysIn = m => { const [y, mo] = m.split("-").map(Number); return new Date(y, mo, 0).getDate(); };
+const mLabel = m => { const [y, mo] = m.split("-"); return MON[+mo - 1] + " " + y.slice(2); };
+const mLong = m => { const [y, mo] = m.split("-"); return MON[+mo - 1] + " " + y; };
+function compact(v, d = 1) {
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v / 1e9).toFixed(d) + "B";
+  if (a >= 1e6) return (v / 1e6).toFixed(d) + "M";
+  if (a >= 1e3) return (v / 1e3).toFixed(a >= 1e4 ? 0 : d) + "K";
+  return (+v.toFixed(2)).toString();
+}
+const int = v => Math.round(v).toLocaleString("en-US");
+const pct = (a, b) => ((a / b - 1) * 100);
+const signed = p => (p >= 0 ? "+" : "−") + Math.abs(p).toFixed(1) + "%";
+function el(tag, attrs = {}, parent, text) {
+  const n = tag.startsWith("svg:") ? document.createElementNS(SVGNS, tag.slice(4)) : document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (text != null) n.textContent = text;
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function niceTicks(lo, hi, n = 4) {
+  const span = hi - lo || Math.abs(hi) || 1;
+  const raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= raw);
+  const out = [];
+  for (let t = Math.floor(lo / step) * step; t <= Math.ceil(hi / step) * step + step / 2; t += step) out.push(+t.toFixed(10));
+  return out;
+}
+
+// ---------- tooltip ----------
+const tip = document.getElementById("tip");
+function showTip(x, y, title, rows) {
+  tip.replaceChildren();
+  el("div", { class: "t" }, tip, title);
+  for (const r of rows) {
+    const row = el("div", { class: "r" }, tip);
+    const key = el("i", {}, row); key.style.background = r.color;
+    el("b", {}, row, r.value);
+    if (r.name) el("span", {}, row, r.name);
+  }
+  tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let left = x + 14, top = y - h - 10;
+  if (left + w > innerWidth - 8) left = x - w - 14;
+  if (top < 8) top = y + 16;
+  tip.style.left = left + "px"; tip.style.top = top + "px";
+}
+const hideTip = () => { tip.hidden = true; };
+
+// ---------- data table (accessible view of every chart) ----------
+function dataTable(host, headers, rows) {
+  const d = el("details", { class: "data" }, host);
+  el("summary", {}, d, "Data table");
+  const wrap = el("div", { class: "table-wrap" }, d);
+  const t = el("table", {}, wrap);
+  const hr = el("tr", {}, el("thead", {}, t));
+  headers.forEach((h, i) => el("th", i ? { class: "num" } : {}, hr, h));
+  const tb = el("tbody", {}, t);
+  rows.forEach(r => { const tr = el("tr", {}, tb); r.forEach((c, i) => el("td", i ? { class: "num" } : {}, tr, c)); });
+}
+
+// ---------- line chart with crosshair ----------
+function lineChart(id, { x, series, fmt, h = 210, zero = false }) {
+  const host = document.getElementById(id);
+  const multi = series.length > 1;
+  if (multi) {
+    const lg = el("div", { class: "legend" }, host);
+    series.forEach(s => { const sp = el("span", {}, lg); el("i", {}, sp).style.background = s.color; sp.append(s.name); });
+  }
+  const box = el("div", {}, host);
+  let idx = null;
+  function draw() {
+    box.replaceChildren();
+    const W = Math.max(280, box.clientWidth), H = h;
+    const m = { l: 48, r: multi ? 58 : 18, t: 10, b: 26 };
+    const all = series.flatMap(s => s.values);
+    const ticks = niceTicks(zero ? 0 : Math.min(...all), Math.max(...all));
+    const lo = ticks[0], hi = ticks[ticks.length - 1];
+    const X = i => m.l + i * (W - m.l - m.r) / (x.length - 1);
+    const Y = v => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+    const svg = el("svg:svg", { viewBox: `0 0 ${W} ${H}`, height: H, tabindex: 0, role: "img",
+      "aria-label": series.map(s => s.name).join(", ") + " by month; use arrow keys to step through values" }, box);
+    ticks.forEach((t, i) => {
+      el("svg:line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t), stroke: i === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1, "shape-rendering": "crispEdges" }, svg);
+      el("svg:text", { x: m.l - 8, y: Y(t) + 4, "text-anchor": "end", class: "axis-text" }, svg, fmt.axis(t));
+    });
+    const every = W < 520 ? 6 : 3;
+    x.forEach((mo, i) => { if (i % every === 0) el("svg:text", { x: X(i), y: H - 6, "text-anchor": "middle", class: "axis-text" }, svg, mLabel(mo)); });
+    for (const s of series) {
+      const d = s.values.map((v, i) => (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1)).join("");
+      el("svg:path", { d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      const li = s.values.length - 1;
+      el("svg:circle", { cx: X(li), cy: Y(s.values[li]), r: 4, fill: s.color, stroke: "var(--surface-1)", "stroke-width": 2 }, svg);
+      if (multi) el("svg:text", { x: X(li) + 9, y: Y(s.values[li]) + 4, class: "end-label" }, svg, s.name);
+    }
+    const cross = el("svg:line", { y1: m.t, y2: H - m.b, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" }, svg);
+    const dots = series.map(s => el("svg:circle", { r: 4, fill: s.color, stroke: "var(--surface-1)", "stroke-width": 2, visibility: "hidden" }, svg));
+    const hit = el("svg:rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: "transparent" }, svg);
+    function focusIdx(i, cx, cy) {
+      idx = i;
+      cross.setAttribute("x1", X(i)); cross.setAttribute("x2", X(i)); cross.setAttribute("visibility", "visible");
+      dots.forEach((dt, k) => { dt.setAttribute("cx", X(i)); dt.setAttribute("cy", Y(series[k].values[i])); dt.setAttribute("visibility", "visible"); });
+      if (cx == null) { const r = svg.getBoundingClientRect(); cx = r.left + X(i) * r.width / W; cy = r.top + m.t + 20; }
+      showTip(cx, cy, mLong(x[i]), series.map(s => ({ color: s.color, value: fmt.tip(s.values[i]), name: multi ? s.name : "" })));
+    }
+    function blur() { cross.setAttribute("visibility", "hidden"); dots.forEach(dt => dt.setAttribute("visibility", "hidden")); hideTip(); }
+    hit.addEventListener("pointermove", e => {
+      const r = svg.getBoundingClientRect();
+      const px = (e.clientX - r.left) * W / r.width;
+      const i = Math.max(0, Math.min(x.length - 1, Math.round((px - m.l) / ((W - m.l - m.r) / (x.length - 1)))));
+      focusIdx(i, e.clientX, e.clientY);
+    });
+    hit.addEventListener("pointerleave", blur);
+    svg.addEventListener("keydown", e => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      e.preventDefault();
+      const i = idx == null ? x.length - 1 : Math.max(0, Math.min(x.length - 1, idx + (e.key === "ArrowRight" ? 1 : -1)));
+      focusIdx(i);
+    });
+    svg.addEventListener("blur", blur);
+  }
+  draw();
+  new ResizeObserver(() => { if (Math.abs(box.clientWidth - (box._w || 0)) > 4) { box._w = box.clientWidth; draw(); } }).observe(box);
+  dataTable(host, ["Month", ...series.map(s => s.name)], x.map((mo, i) => [mo, ...series.map(s => fmt.tip(s.values[i]))]));
+}
+
+// ---------- horizontal bar chart ----------
+function barChart(id, items, fmt, unitName) {
+  const host = document.getElementById(id);
+  const wrap = el("div", { class: "bars" }, host);
+  const max = Math.max(...items.map(d => d[1]));
+  for (const [label, v] of items) {
+    const row = el("div", { class: "bar-row", tabindex: 0 }, wrap);
+    el("div", { class: "bar-label", title: label }, row, label);
+    const track = el("div", { class: "bar-track" }, row);
+    el("div", { class: "bar" }, track).style.width = `calc((100% - 64px) * ${v / max})`;
+    el("span", { class: "bar-value" }, track, fmt(v));
+    const show = (cx, cy) => showTip(cx, cy, label, [{ color: "var(--series-1)", value: int(v), name: unitName }]);
+    row.addEventListener("pointermove", e => show(e.clientX, e.clientY));
+    row.addEventListener("pointerleave", hideTip);
+    row.addEventListener("focus", () => { const r = row.getBoundingClientRect(); show(r.right - 80, r.top); });
+    row.addEventListener("blur", hideTip);
+  }
+  dataTable(host, ["Item", unitName], items.map(([l, v]) => [l, int(v)]));
+}
+
+// ---------- derived series ----------
+const BBL = 6.2898, MCF = 35.3147;
+const oilBpd   = PROD.oil.map((v, i) => v * BBL / daysIn(MONTHS[i]));
+const gasMmcfd = PROD.gas.map((v, i) => v * MCF / 1000 / daysIn(MONTHS[i]));
+const condBpd  = PROD.cond.map((v, i) => v * BBL / daysIn(MONTHS[i]));
+const waterM3d = PROD.water.map((v, i) => v / daysIn(MONTHS[i]));
+const S1 = "var(--series-1)", S2 = "var(--series-2)";
+const sum = a => a.reduce((x, y) => x + y, 0);
+const L = MONTHS.length - 1, YAGO = L - 12;
+
+// ---------- tiles ----------
+const tiles = [
+  ["Oil, Dec 2025", compact(oilBpd[L], 2) + " bbl/d", signed(pct(oilBpd[L], oilBpd[YAGO])) + " vs Dec 2024"],
+  ["Gas, Dec 2025", (gasMmcfd[L] / 1000).toFixed(1) + " Bcf/d", signed(pct(gasMmcfd[L], gasMmcfd[YAGO])) + " vs Dec 2024"],
+  ["Condensate, Dec 2025", compact(condBpd[L]) + " bbl/d", signed(pct(condBpd[L], condBpd[0])) + " vs Jan 2024"],
+  ["Vented gas, 2025", compact(sum(EMIS.vent.slice(12))) + " e³m³", signed(pct(sum(EMIS.vent.slice(12)), sum(EMIS.vent.slice(0, 12)))) + " vs 2024"],
+  ["Shut-in wells, Dec 2025", int(SHUTIN[L]), signed(pct(SHUTIN[L], SHUTIN[0])) + " vs Jan 2024"],
+  ["Volumetric rows", "13.2M", "25,316 facilities · 523 operators"]
+];
+const tilesHost = document.getElementById("tiles");
+for (const [l, v, d] of tiles) {
+  const t = el("div", { class: "tile" }, tilesHost);
+  el("div", { class: "label" }, t, l); el("div", { class: "value" }, t, v); el("div", { class: "delta" }, t, d);
+}
+
+// ---------- catalog ----------
+const CATALOG = [
+  ["volumetrics", 13202205, "facility × month × activity × product × from/to", "Core fact table. All columns STRING."],
+  ["ngl_volumes", 2577956, "well × month", "Gas/oil/cond/water + C2–C5 NGL components. All STRING."],
+  ["facility_emissions", 366801, "facility × month", "Flare/vent/fuel gas, pre-aggregated from volumetrics."],
+  ["wells", 118600, "well", "Built from ngl_volumes; lifetime totals; formation is unreliable."],
+  ["facilities", 25316, "facility", "Lat/lon + region (region is coarse lat/lon bands)."],
+  ["operators", 523, "operator (BAID)", "Lifetime totals summed across ALL activities, so they are inflated."],
+  ["field_codes", 84, "field code", "Partial lookup: 84 of 574 codes used in wells."],
+  ["market_prices", 14, "month", "WTI/WCS/AECO/FX, 2025-01 → 2026-02 only."]
+];
+(() => {
+  const t = document.getElementById("catalog");
+  const hr = el("tr", {}, el("thead", {}, t));
+  ["Table", "Rows", "Grain", "Notes"].forEach((h, i) => el("th", i === 1 ? { class: "num" } : {}, hr, h));
+  const tb = el("tbody", {}, t);
+  for (const [n, r, g, note] of CATALOG) {
+    const tr = el("tr", {}, tb);
+    el("code", {}, el("td", {}, tr), n);
+    el("td", { class: "num" }, tr, int(r)); el("td", {}, tr, g); el("td", {}, tr, note);
+  }
+})();
+
+// ---------- charts ----------
+const kfmt = { axis: v => compact(v), tip: v => int(v) };
+lineChart("c-oil",   { x: MONTHS, series: [{ name: "Oil", color: S1, values: oilBpd }],     fmt: { axis: v => compact(v, 1), tip: v => int(v) + " bbl/d" } });
+lineChart("c-gas",   { x: MONTHS, series: [{ name: "Gas", color: S1, values: gasMmcfd }],   fmt: { axis: v => compact(v), tip: v => int(v) + " MMcf/d" } });
+lineChart("c-cond",  { x: MONTHS, series: [{ name: "Condensate", color: S1, values: condBpd }], fmt: { axis: v => compact(v), tip: v => int(v) + " bbl/d" } });
+lineChart("c-water", { x: MONTHS, series: [{ name: "Water", color: S1, values: waterM3d }], fmt: { axis: v => compact(v), tip: v => int(v) + " m³/d" } });
+
+barChart("c-activity", ACTIVITY, v => compact(v), "rows");
+barChart("c-subtype", SUBTYPES, v => int(v), "facilities");
+barChart("c-op-oil", OP_OIL.map(([n, v]) => [n, v * BBL / DAYS_WINDOW]), v => compact(v) , "bbl/d");
+barChart("c-op-gas", OP_GAS.map(([n, v]) => [n, v * MCF / 1000 / DAYS_WINDOW]), v => int(v), "MMcf/d");
+
+lineChart("c-fv",   { x: MONTHS, zero: true, series: [{ name: "Flare", color: S1, values: EMIS.flare }, { name: "Vent", color: S2, values: EMIS.vent }], fmt: { axis: v => compact(v), tip: v => int(v) + " e³m³" } });
+lineChart("c-fuel", { x: MONTHS, series: [{ name: "Fuel", color: S1, values: EMIS.fuel }], fmt: { axis: v => compact(v, 1), tip: v => int(v) + " e³m³" } });
+lineChart("c-shut", { x: MONTHS, series: [{ name: "Shut-in wells", color: S1, values: SHUTIN }], fmt: { axis: v => compact(v), tip: v => int(v) + " wells" }, h: 190 });
+lineChart("c-oilpx", { x: PX_MONTHS, series: [{ name: "WTI", color: S1, values: PX.wti }, { name: "WCS", color: S2, values: PX.wcs }], fmt: { axis: v => "$" + v, tip: v => "$" + v.toFixed(2) } });
+lineChart("c-aeco",  { x: PX_MONTHS, zero: true, series: [{ name: "AECO", color: S1, values: PX.aeco }], fmt: { axis: v => "$" + v.toFixed(2).replace(/\.00$/, ""), tip: v => "$" + v.toFixed(2) + "/GJ" } });
+
+// ---------- joins ----------
+const JOINS = [
+  ["volumetrics.ReportingFacilityID → facilities", 25316, 25316],
+  ["facility_emissions.facility_id → facilities", 19119, 19119],
+  ["ngl_volumes.WellID → wells", 118600, 118600],
+  ["wells.facility_id → facilities", 11375, 11393],
+  ["wells.field_name → field_codes", 96208, 118600],
+  ["volumetrics.FromToID (WI) → wells", 116496, 171529],
+  ["production months → market_prices", 12, 24]
+];
+(() => {
+  const t = document.getElementById("joinsTbl");
+  const hr = el("tr", {}, el("thead", {}, t));
+  ["Join", "Matched", "Of", "Coverage"].forEach((h, i) => el("th", i === 1 || i === 2 ? { class: "num" } : {}, hr, h));
+  const tb = el("tbody", {}, t);
+  for (const [j, a, b] of JOINS) {
+    const tr = el("tr", {}, tb);
+    el("code", {}, el("td", {}, tr), j);
+    el("td", { class: "num" }, tr, int(a)); el("td", { class: "num" }, tr, int(b));
+    const mtr = el("div", { class: "meter" }, el("td", {}, tr));
+    el("div", { class: "meter-fill" }, el("div", { class: "meter-track" }, mtr)).style.width = (a / b * 100) + "%";
+    el("span", { class: "bar-value" }, mtr, Math.round(a / b * 100) + "%");
+  }
+})();
+
+// ---------- issues ----------
+const SEV = { High: "var(--critical)", Medium: "var(--serious)", Low: "var(--warning)" };
+const ISSUES = [
+  ["High", "Summing Volume across activities double-counts",
+   "The same volume appears as PROD, DISP, REC downstream, INV, and so on. Filter ActivityID = 'PROD' for production, or FLARE/VENT/FUEL + ProductID = 'GAS' for emissions."],
+  ["High", "operators totals are inflated",
+   "They match volumetrics sums across all activities (oil ≈2.6×, gas ≈9.5× PROD), so midstream firms like Pembina, Plains and Keyera rank as top gas 'producers'. Recompute from PROD instead."],
+  ["High", "region is a coarse lat/lon band",
+   "Everything north of 55°N is 'Peace Country', including Fort McMurray and Christina Lake oil sands, so 'Peace Country' shows the most oil. Re-derive region (or use township/range) if region matters."],
+  ["High", "wells.formation is unreliable",
+   "It is derived from pool code: pool 0950160 labels 44.8k wells across Pembina, Provost and Kaybob as 'Montney', and those wells total only 10.9M e³m³ of gas."],
+  ["Medium", "All volumetrics / ngl_volumes columns are STRING",
+   "Use try_cast(Volume AS DOUBLE), because 56 non-null Volume values don't parse. Proration-factor rows have null ActivityID."],
+  ["Medium", "facility_emissions.production_volume mixes units",
+   "It sums every PROD product (gas e³m³ + water m³ + oil m³). Build intensity denominators from volumetrics PROD for one product."],
+  ["Medium", "wells covers ~68% of wells in volumetrics",
+   "wells is built from ngl_volumes (118.6k). Volumetrics references 171.5k distinct WI ids, so use FromToID for full coverage."],
+  ["Low", "market_prices overlaps 2025 only",
+   "Revenue or price analysis is limited to 12 months, and the values look rounded or approximate."],
+  ["Low", "field_codes is partial; field_name/pool_name hold codes",
+   "84 of 574 field codes have names. Use wells.field_display_name, which falls back to the code."]
+];
+(() => {
+  const host = document.getElementById("issues");
+  for (const [s, h, p] of ISSUES) {
+    const row = el("div", { class: "issue" }, host);
+    const sev = el("span", { class: "sev" }, row); el("i", {}, sev).style.background = SEV[s]; sev.append(s);
+    const body = el("div", {}, row); el("h4", {}, body, h); el("p", {}, body, p);
+  }
+})();
+
+// ---------- ideas ----------
+const IDEAS = [
+  ["Flaring & venting league table", "Intensity by operator or facility, mapped with lat/lon. Venting fell sharply in 2025, so which operators drove that?"],
+  ["Decline & type curves", "24 months of well-level production in ngl_volumes. Fit decline curves by field or operator."],
+  ["Shut-in watch", "Shut-in wells rose from ~13k to ~16k. Who is going dormant, and what were those wells producing before?"],
+  ["2025 revenue estimate", "Oil × WCS (CAD) plus gas energy (GJ) × AECO, by operator or region."],
+  ["Liquids-rich plays", "NGL yield (C2–C5 per e³m³ gas) by field to rank liquids-rich areas, alongside the condensate growth story."],
+  ["Water handling", "Produced water ≈ 4.5× oil. Track water cut and disposal (DISP/INJ) by operator."]
+];
+(() => {
+  const host = document.getElementById("ideasGrid");
+  for (const [h, p] of IDEAS) { const c = el("div", { class: "card" }, host); el("h3", {}, c, h); el("p", {}, c, p); }
+})();
+</script>
+</body>
+</html>
