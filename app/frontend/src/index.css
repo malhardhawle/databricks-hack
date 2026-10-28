@@ -315,3 +315,15 @@ details.advanced summary { cursor: pointer; font-size: 12px; font-weight: 600; c
   .assumptions { border-right: none; border-bottom: 1px solid var(--border); }
   .map-panel { width: 220px; }
 }
+
+/* ---------- focused operator ---------- */
+.focus-banner {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1.5px solid var(--ink); border-radius: 999px; padding: 5px 6px 5px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); font-size: 13px; flex-wrap: wrap; max-width: calc(100% - 24px);
+}
+@media (max-width: 900px) {
+  .focus-banner { top: auto; bottom: 12px; border-radius: 14px; }
+  .map-hint { display: none; }
+}
+.focus-banner .btn.small { margin-left: 4px; }

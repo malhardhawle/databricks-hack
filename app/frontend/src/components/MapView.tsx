@@ -109,20 +109,26 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
     setView(v => ({ ...v, longitude: fit.longitude, latitude: fit.latitude, zoom: fit.zoom }))
   }, [])
 
-  // Fly to the operator picked on the Ranking tab or in the details panel.
+  // The operator picked on the Ranking tab, Top 3 or a results row: all its facilities, whatever the filters.
+  const focused = useMemo(
+    () => (focusOperator ? facilities.filter(f => f.operator_baid === focusOperator) : []),
+    [focusOperator, facilities],
+  )
+  const focusCandidate = candidates.find(c => c.operator_baid === focusOperator)
+
+  // Fly to the focused operator, leaving room for the panel and the banner.
   useEffect(() => {
-    if (!focusOperator) return
-    const own = facilities.filter(f => f.operator_baid === focusOperator)
-    if (!own.length) return
-    const lats = own.map(f => f.lat), lons = own.map(f => f.lon)
-    const span = Math.max(Math.max(...lons) - Math.min(...lons), (Math.max(...lats) - Math.min(...lats)) * 1.6, 0.2)
-    setView(v => ({
-      ...v,
-      longitude: (Math.max(...lons) + Math.min(...lons)) / 2,
-      latitude: (Math.max(...lats) + Math.min(...lats)) / 2,
-      zoom: Math.min(11, Math.log2(360 / span) - 0.3),
-    }))
-  }, [focusOperator, facilities])
+    if (!focused.length) return
+    const el = surfaceRef.current
+    const lats = focused.map(f => f.lat), lons = focused.map(f => f.lon)
+    const pad = 0.05 // degrees, so a single facility still gets a sensible zoom
+    const bounds: [[number, number], [number, number]] = [
+      [Math.min(...lons) - pad, Math.min(...lats) - pad], [Math.max(...lons) + pad, Math.max(...lats) + pad]]
+    if (!el || !el.clientWidth) return
+    const fit = new WebMercatorViewport({ width: el.clientWidth, height: el.clientHeight }).fitBounds(
+      bounds, { padding: { left: 300, right: 60, top: 80, bottom: 70 }, maxZoom: 11 })
+    setView(v => ({ ...v, longitude: fit.longitude, latitude: fit.latitude, zoom: fit.zoom }))
+  }, [focused])
 
   // Query Lakebase whenever the selection or search parameters change.
   useEffect(() => {
@@ -169,7 +175,7 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
     return [e.clientX - r.left, e.clientY - r.top]
   }
   const pick = ([x, y]: Pt) =>
-    (deckRef.current?.pickObject({ x, y, radius: 5, layerIds: ['cnrl', 'competitors'] })?.object as Facility | undefined) ?? null
+    (deckRef.current?.pickObject({ x, y, radius: 5, layerIds: ['focus', 'cnrl', 'competitors'] })?.object as Facility | undefined) ?? null
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* synthetic pointers can't be captured */ }
@@ -265,19 +271,20 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
       getPosition: f => [f.lon, f.lat],
       getRadius: f => radius(f.boe_d) + (f.facility_id === detailId ? 2 : 0),
       radiusUnits: 'pixels',
-      getFillColor: f => [...COLORS.competitor, result ? (resultIds.has(f.facility_id) ? 235 : 30) : 120],
+      // Fade everything else while an operator is focused, so its facilities stand out.
+      getFillColor: f => [...COLORS.competitor,
+        focusOperator ? 30 : result ? (resultIds.has(f.facility_id) ? 235 : 30) : 120],
       stroked: true,
       lineWidthUnits: 'pixels',
       getLineWidth: f => (f.facility_id === detailId ? 2.5 : resultIds.has(f.facility_id) ? 1.5
-        : top3.has(f.operator_baid) || f.operator_baid === focusOperator ? 2 : 0),
-      getLineColor: f => (f.facility_id === detailId || f.operator_baid === focusOperator ? COLORS.ink
-        : top3.has(f.operator_baid) ? COLORS.top3 : [255, 255, 255]),
+        : top3.has(f.operator_baid) && !focusOperator ? 2 : 0),
+      getLineColor: f => (f.facility_id === detailId ? COLORS.ink : top3.has(f.operator_baid) ? COLORS.top3 : [255, 255, 255]),
       pickable: true,
       updateTriggers: {
         getRadius: [detailId],
-        getFillColor: [result],
+        getFillColor: [result, focusOperator],
         getLineWidth: [result, top3Baids, focusOperator, detailId],
-        getLineColor: [top3Baids, focusOperator, detailId],
+        getLineColor: [top3Baids, detailId],
       },
     }),
     new ScatterplotLayer<Facility>({
@@ -286,13 +293,30 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
       getPosition: f => [f.lon, f.lat],
       getRadius: f => Math.max(3, radius(f.boe_d)) + (f.facility_id === detailId ? 2 : 0),
       radiusUnits: 'pixels',
-      getFillColor: f => [...(f.is_acquired ? COLORS.acquired : COLORS.legacy), selected.has(f.facility_id) ? 255 : 190],
+      getFillColor: f => [...(f.is_acquired ? COLORS.acquired : COLORS.legacy),
+        selected.has(f.facility_id) ? 255 : focusOperator ? 70 : 190],
       stroked: true,
       lineWidthUnits: 'pixels',
       getLineWidth: f => (selected.has(f.facility_id) || f.facility_id === detailId ? 2 : 0.5),
       getLineColor: f => (selected.has(f.facility_id) || f.facility_id === detailId ? COLORS.ink : [255, 255, 255]),
       pickable: true,
-      updateTriggers: { getRadius: [detailId], getFillColor: [selected], getLineWidth: [selected, detailId], getLineColor: [selected, detailId] },
+      updateTriggers: {
+        getRadius: [detailId], getFillColor: [selected, focusOperator], getLineWidth: [selected, detailId], getLineColor: [selected, detailId],
+      },
+    }),
+    // Drawn last so the focused operator is never hidden under CNRL dots at shared locations.
+    new ScatterplotLayer<Facility>({
+      id: 'focus',
+      data: focused,
+      getPosition: f => [f.lon, f.lat],
+      getRadius: f => Math.max(6, radius(f.boe_d) + 4),
+      radiusUnits: 'pixels',
+      getFillColor: [...COLORS.ink, 235],
+      stroked: true,
+      lineWidthUnits: 'pixels',
+      getLineWidth: 2,
+      getLineColor: [255, 255, 255],
+      pickable: true,
     }),
   ]
 
@@ -433,14 +457,23 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
               </label>
             ))}
             <div className="legend-item"><span className="spacer" /><i className="ring" style={{ borderColor: `rgb(${COLORS.top3.join(',')})` }} />Top-3 acquisition candidates</div>
-            {focusOperator && (
-              <div className="legend-item">
-                <span className="spacer" /><i className="ring" style={{ borderColor: '#0b0b0b' }} />{facilities.find(f => f.operator_baid === focusOperator)?.operator_name ?? 'Focused operator'}
-                <button className="btn ghost small" onClick={() => onFocusOperator(null)}>Clear</button>
-              </div>
+            {focused.length > 0 && (
+              <div className="legend-item"><span className="spacer" /><i style={{ background: '#0b0b0b' }} />{focused[0].operator_name}</div>
             )}
           </div>
         </div>
+
+        {focused.length > 0 && (
+          <div className="focus-banner" onPointerDown={e => e.stopPropagation()}>
+            <i className="dot" style={{ background: '#0b0b0b' }} />
+            <span>Showing <b>{focused[0].operator_name}</b></span>
+            <span className="muted">
+              {int(focused.length)} facilit{focused.length === 1 ? 'y' : 'ies'} · {int(focused.reduce((s, f) => s + f.boe_d, 0))} boe/d
+              {focusCandidate ? ` · ranked #${focusCandidate.rank} of ${candidates.length}` : ''}
+            </span>
+            <button className="btn ghost small" onClick={() => onFocusOperator(null)}>Clear</button>
+          </div>
+        )}
 
         <div className="map-hint" onPointerDown={e => e.stopPropagation()}>
           <span><b>Drag</b> to lasso</span><span><b>Shift</b>+drag to add</span><span><b>Click</b> a dot for details</span>
