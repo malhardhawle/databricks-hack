@@ -3,16 +3,16 @@ import type { RankResponse } from '../api'
 import { compact, dec, int, km, money, pct } from '../format'
 
 const CASES: Record<string, string> = {
-  multiple_low: 'Price multiple low',
+  multiple_low: 'We pay less',
   base: 'Base case',
-  multiple_high: 'Price multiple high',
-  oil_minus_20pct: 'Oil price −20%',
-  oil_plus_20pct: 'Oil price +20%',
+  multiple_high: 'We pay more',
+  oil_minus_20pct: 'Oil price 20% lower',
+  oil_plus_20pct: 'Oil price 20% higher',
 }
 
-type Props = { rank: RankResponse | null; onShowOnMap: (baid: string) => void }
+type Props = { rank: RankResponse | null; onShowOnMap: (baid: string) => void; onAskGenie: (question: string) => void }
 
-export function Top3View({ rank, onShowOnMap }: Props) {
+export function Top3View({ rank, onShowOnMap, onAskGenie }: Props) {
   const top = rank?.top3.candidates ?? []
   if (!top.length) return <section className="content padded"><p className="muted">Loading…</p></section>
   const a = rank!.assumptions
@@ -26,39 +26,52 @@ export function Top3View({ rank, onShowOnMap }: Props) {
     <section className="content padded">
       <header className="section-head">
         <div>
-          <h2>Top 3 candidates</h2>
-          <p className="muted">
-            Transport savings = (today's haul km to where each facility actually ships − km to the nearest compatible CNRL facility) × 2025 volume × tariff.
-            Liquids tie into CNRL batteries/injection at ${dec(Number(a.liq_tariff_per_m3_km), 2)}/m³/km; gas into CNRL plants/gathering at $
-            {dec(Number(a.gas_tariff_per_e3m3_km), 2)}/e³m³/km <em>(placeholder tariff)</em>.
-          </p>
+          <h2>Compare the top 3</h2>
+          <p className="muted">The three best-scoring candidates under the current assumptions. Change assumptions on the Rank tab and this updates.</p>
         </div>
       </header>
+      <details className="explain">
+        <summary>How are transport savings estimated?</summary>
+        <ul>
+          <li>For each of the candidate's facilities we measure how far its oil, condensate and gas travel today (to where Petrinex says it actually ships) and how far the nearest suitable CNRL facility is.</li>
+          <li>If CNRL is closer, the shorter haul × 2025 volume × tariff is the saving: liquids into CNRL batteries at ${dec(Number(a.liq_tariff_per_m3_km), 2)}/m³/km,
+            gas into CNRL plants and gathering systems at ${dec(Number(a.gas_tariff_per_e3m3_km), 2)}/e³m³/km <em>(placeholder tariff)</em>.</li>
+        </ul>
+      </details>
 
       <div className="cards">
         {top.map(t => (
           <article key={t.operator_baid} className="card">
-            <div className="card-rank">#{t.rank}</div>
+            <div className="card-rank">#{t.rank} · {compact(t.boe_d)} boe/d</div>
             <h3>{t.operator_name}</h3>
-            <div className="kv"><span>Production</span><b>{compact(t.boe_d)} boe/d</b></div>
-            <div className="kv"><span>ROCE</span><b>{pct(t.roce, 1)}</b></div>
-            <div className="kv"><span>NPV@15%</span><b>{money(t.npv, 0)}</b></div>
-            <div className="kv"><span>Price paid</span><b>{money(t.price_paid, 0)}</b></div>
-            <div className="kv"><span>Accretion</span><b className={t.accretion >= 0 ? 'pos' : 'neg'}>{money(t.accretion, 0)}</b></div>
-            <hr />
-            <div className="kv"><span>Transport savings</span><b>{money(t.transport_savings, 2)}/yr</b></div>
-            <div className="kv"><span>Per boe</span><b>${dec(t.savings_per_boe, 2)}</b></div>
-            <div className="kv"><span>PV@15% (after tax)</span><b>{money(t.savings_pv, 1)}</b></div>
-            <div className="kv"><span>Median distance to CNRL</span><b>{km(t.median_km_to_cnrl)}</b></div>
-            <div className="kv"><span>Production within 25 km</span><b>{pct(t.share_within_25km)}</b></div>
-            <button className="btn ghost" onClick={() => onShowOnMap(t.operator_baid)}>Show on map</button>
+            <p className="verdict">
+              {t.accretion >= 0 ? 'Creates' : 'Destroys'} <b>{money(Math.abs(t.accretion), 0)}</b> of value at a 15% discount rate,
+              with {pct(t.share_within_25km)} of its production within 25 km of CNRL.
+            </p>
+            <div className="big3">
+              <div><span>Value created</span><b className={t.accretion >= 0 ? 'pos' : 'neg'}>{money(t.accretion, 0)}</b></div>
+              <div><span>ROCE</span><b>{pct(t.roce, 1)}</b></div>
+              <div><span>Transport savings</span><b>{money(t.transport_savings, 1)}<small>/yr</small></b></div>
+            </div>
+            <details className="card-more">
+              <summary>Details</summary>
+              <div className="kv"><span>NPV @15%</span><b>{money(t.npv, 0)}</b></div>
+              <div className="kv"><span>Price paid</span><b>{money(t.price_paid, 0)}</b></div>
+              <div className="kv"><span>Transport savings per boe</span><b>${dec(t.savings_per_boe, 2)}</b></div>
+              <div className="kv"><span>Transport savings, PV after tax</span><b>{money(t.savings_pv, 1)}</b></div>
+              <div className="kv"><span>Median distance to CNRL</span><b>{km(t.median_km_to_cnrl)}</b></div>
+            </details>
+            <div className="card-actions">
+              <button className="btn ghost" onClick={() => onShowOnMap(t.operator_baid)}>Show on map</button>
+              <button className="btn ghost genie-link" onClick={() => onAskGenie(`Give me a short acquisition brief on ${t.operator_name}: production trend in 2024–2025, main facilities and how close they are to CNRL.`)}>✦ Ask Genie</button>
+            </div>
           </article>
         ))}
       </div>
 
       <div className="grid2">
         <div className="panel">
-          <h3>Transport savings, $M/yr</h3>
+          <h3>Transport savings per year, by product</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chart} layout="vertical" margin={{ left: 8, right: 24 }}>
               <CartesianGrid horizontal={false} stroke="#e1e0d9" />
@@ -72,7 +85,7 @@ export function Top3View({ rank, onShowOnMap }: Props) {
           </ResponsiveContainer>
         </div>
         <div className="panel">
-          <h3>Accretion sensitivity</h3>
+          <h3>Value created if conditions change</h3>
           <div className="table-wrap">
             <table className="data">
               <thead>
@@ -92,8 +105,8 @@ export function Top3View({ rank, onShowOnMap }: Props) {
             </table>
           </div>
           <p className="muted small-text">
-            Multiples: low ${int(Number(a.price_per_flowing_boe_low))} / base ${int(Number(a.price_per_flowing_boe))} / high ${int(Number(a.price_per_flowing_boe_high))} per flowing boe/d
-            {a.price_basis === 'mix' ? ' (gas and liquids multiples scaled by the same ratio)' : ''}.
+            “We pay less / more” means ${int(Number(a.price_per_flowing_boe_low))} / ${int(Number(a.price_per_flowing_boe_high))} instead
+            of ${int(Number(a.price_per_flowing_boe))} per flowing boe/d{a.price_basis === 'mix' ? ' (gas and liquids prices scaled the same way)' : ''}.
           </p>
         </div>
       </div>

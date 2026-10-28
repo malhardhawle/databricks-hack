@@ -20,6 +20,8 @@ type Props<T> = {
   csvName?: string
   maxRows?: number
   empty?: string
+  /** Extra buttons shown in the toolbar next to Export CSV. */
+  actions?: ReactNode
 }
 
 function csvCell(v: unknown) {
@@ -27,7 +29,7 @@ function csvCell(v: unknown) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-export function DataTable<T>({ columns, rows, rowKey, initialSort, highlight, onRowClick, csvName, maxRows = 500, empty }: Props<T>) {
+export function DataTable<T>({ columns, rows, rowKey, initialSort, highlight, onRowClick, csvName, maxRows = 500, empty, actions }: Props<T>) {
   const [sort, setSort] = useState(initialSort)
 
   const sorted = useMemo(() => {
@@ -60,7 +62,10 @@ export function DataTable<T>({ columns, rows, rowKey, initialSort, highlight, on
           <span className="muted">
             {rows.length > maxRows ? `Showing ${maxRows.toLocaleString()} of ${rows.length.toLocaleString()} rows` : `${rows.length.toLocaleString()} rows`}
           </span>
-          <button className="btn ghost" onClick={exportCsv} disabled={!rows.length}>Export CSV</button>
+          <span className="table-actions">
+            {actions}
+            <button className="btn ghost" onClick={exportCsv} disabled={!rows.length}>Export CSV</button>
+          </span>
         </div>
       )}
       <div className="table-wrap">

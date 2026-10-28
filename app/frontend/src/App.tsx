@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, EMPTY_CONTEXT, type Assumption, type Facility, type MapContext, type Precedent, type RankResponse } from './api'
+import { money, pct } from './format'
 import { GeniePanel } from './components/GeniePanel'
 import { MapView } from './components/MapView'
 import { PrecedentsView } from './components/PrecedentsView'
@@ -7,11 +8,12 @@ import { RankingView } from './components/RankingView'
 import { Top3View } from './components/Top3View'
 
 type Tab = 'map' | 'ranking' | 'top3' | 'precedents'
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'map', label: 'Map & lasso' },
-  { id: 'ranking', label: 'Ranking' },
-  { id: 'top3', label: 'Top 3' },
-  { id: 'precedents', label: 'Precedents' },
+// The tabs read as the decision flow: look around, rank, compare; past deals are the evidence behind the ranking.
+const TABS: { id: Tab; step?: string; label: string; hint: string }[] = [
+  { id: 'map', step: '1', label: 'Explore the map', hint: 'See who produces near CNRL assets' },
+  { id: 'ranking', step: '2', label: 'Rank candidates', hint: 'Score every operator and tune the assumptions' },
+  { id: 'top3', step: '3', label: 'Compare top 3', hint: 'Value, ROCE and transport savings side by side' },
+  { id: 'precedents', label: 'Past CNRL deals', hint: 'What CNRL bought in 2024–25, and a back-test' },
 ]
 
 export default function App() {
@@ -70,6 +72,8 @@ export default function App() {
   const clearPrefill = useCallback(() => setGeniePrefill(null), [])
   const showOnMap = (baid: string) => { setFocusOperator(baid); setTab('map') }
   const radius = Number(assumptions.find(a => a.key === 'lasso_radius_km')?.value ?? 25)
+  const operatorNames = useMemo(() => new Map((facilities ?? []).map(f => [f.operator_baid, f.operator_name])), [facilities])
+  const top = rank?.candidates[0]
 
   return (
     <div className={`app ${genieOpen ? 'genie-open' : ''}`}>
@@ -80,13 +84,18 @@ export default function App() {
         </div>
         <nav className="tabs">
           {TABS.map(t => (
-            <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>{t.label}</button>
+            <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)} title={t.hint}>
+              {t.step && <span className="step">{t.step}</span>}{t.label}
+            </button>
           ))}
         </nav>
-        {rank && (
-          <div className="top-pick">
-            Top pick <b>{rank.candidates[0]?.operator_name}</b>
-          </div>
+        {top && (
+          <button className="top-pick" onClick={() => setTab('top3')} title="Open the top-3 comparison">
+            <span className="muted">Recommended</span>
+            <b>{top.operator_name}</b>
+            <span className="pill">ROCE {pct(top.roce, 0)}</span>
+            <span className={`pill ${top.accretion >= 0 ? 'good' : 'bad'}`}>{money(top.accretion, 0)}</span>
+          </button>
         )}
         <button className={`btn genie-btn ${genieOpen ? 'on' : ''}`} onClick={() => setGenieOpen(o => !o)}>✦ Ask Genie</button>
       </header>
@@ -116,9 +125,9 @@ export default function App() {
           </div>
           {tab === 'ranking' && (
             <RankingView rank={rank} loading={rankLoading} assumptions={assumptions} overrides={overrides}
-              onOverride={setOverride} onReset={() => setOverrides({})} onShowOnMap={showOnMap} />
+              onOverride={setOverride} onReset={() => setOverrides({})} onShowOnMap={showOnMap} operatorNames={operatorNames} />
           )}
-          {tab === 'top3' && <Top3View rank={rank} onShowOnMap={showOnMap} />}
+          {tab === 'top3' && <Top3View rank={rank} onShowOnMap={showOnMap} onAskGenie={askGenie} />}
           {tab === 'precedents' && <PrecedentsView precedents={precedents} rank={rank} />}
         </main>
         <GeniePanel

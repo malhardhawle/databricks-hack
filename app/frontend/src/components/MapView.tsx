@@ -100,6 +100,15 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
   const resultIds = useMemo(() => new Set(result?.facilities.map(f => f.facility_id)), [result])
   const top3 = useMemo(() => new Set(top3Baids), [top3Baids])
 
+  // Start framed on Alberta for whatever screen size this is, leaving room for the control panel.
+  useEffect(() => {
+    const el = surfaceRef.current
+    if (!el || !el.clientWidth || !el.clientHeight) return
+    const fit = new WebMercatorViewport({ width: el.clientWidth, height: el.clientHeight }).fitBounds(
+      [[-120.1, 48.9], [-109.9, 60.1]], { padding: { left: 300, right: 40, top: 30, bottom: 60 } })
+    setView(v => ({ ...v, longitude: fit.longitude, latitude: fit.latitude, zoom: fit.zoom }))
+  }, [])
+
   // Fly to the operator picked on the Ranking tab or in the details panel.
   useEffect(() => {
     if (!focusOperator) return
@@ -329,7 +338,7 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
   const cursor = panning ? 'grabbing' : path ? 'crosshair' : hover ? 'pointer' : 'crosshair'
 
   return (
-    <div className="map-page">
+    <div className={`map-page ${selected.size ? 'has-results' : ''}`}>
       <div className="map-area">
         <DeckGL ref={deckRef} viewState={view} controller={false} layers={layers}>
           <Map mapStyle={BASEMAP} />
@@ -361,72 +370,81 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
         </div>
 
         <div className="map-panel controls" onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
-          <div className="how">
-            <div><kbd>Left-drag</kbd><span>lasso CNRL assets</span></div>
-            <div><kbd>Shift + drag</kbd><span>add to selection</span></div>
-            <div><kbd>Click</kbd><span>any dot for details</span></div>
-            <div><kbd>Right-drag</kbd><span>pan <span className="muted">(or Ctrl + drag)</span></span></div>
-            <div><kbd>Scroll</kbd><span>zoom</span></div>
-          </div>
-          <div className="row">
-            <strong>{int(selected.size)}</strong>&nbsp;CNRL assets selected
-            {selected.size > 0 && <button className="btn ghost small" onClick={() => setSelected(new Set())}>Clear</button>}
-          </div>
+          <h3>Who produces near CNRL?</h3>
+          {selected.size ? (
+            <div className="selection">
+              <span><strong>{int(selected.size)}</strong> CNRL asset{selected.size === 1 ? '' : 's'} selected</span>
+              <button className="btn ghost small" onClick={() => setSelected(new Set())}>Clear</button>
+            </div>
+          ) : (
+            <p className="step-hint">Draw a loop around the <i className="dot" style={{ background: `rgb(${COLORS.legacy.join(',')})` }} /> blue CNRL assets on the map.</p>
+          )}
 
-          <label className="field">
-            <span>Search</span>
-            <select value={params.mode} onChange={e => setParams(p => ({ ...p, mode: e.target.value as 'radius' | 'knn' }))}>
-              <option value="radius">Within radius</option>
-              <option value="knn">k nearest per asset</option>
-            </select>
-          </label>
           {params.mode === 'radius' ? (
             <label className="field">
-              <span>Radius <b>{params.radius_km} km</b></span>
+              <span>Look within <b>{params.radius_km} km</b></span>
               <input type="range" min={5} max={100} step={5} value={params.radius_km}
                 onChange={e => setParams(p => ({ ...p, radius_km: Number(e.target.value) }))} />
             </label>
           ) : (
             <label className="field">
-              <span>k <b>{params.k}</b></span>
+              <span>Nearest <b>{params.k}</b> competitor facilities per asset</span>
               <input type="range" min={1} max={20} value={params.k}
                 onChange={e => setParams(p => ({ ...p, k: Number(e.target.value) }))} />
             </label>
           )}
-          <label className="field">
-            <span>Production</span>
-            <select value={params.window} onChange={e => setParams(p => ({ ...p, window: e.target.value as '2025' | 'last3' }))}>
-              <option value="2025">2025 average</option>
-              <option value="last3">Last 3 months (Oct–Dec 2025)</option>
-            </select>
-          </label>
 
-          <div className="chips">
-            {TYPES.map(t => (
-              <button key={t.code} className={`chip ${types.has(t.code) ? 'on' : ''}`} onClick={() => toggleType(t.code)}>{t.label}</button>
-            ))}
-          </div>
+          <details className="more">
+            <summary>More options</summary>
+            <label className="field">
+              <span>Search by</span>
+              <select value={params.mode} onChange={e => setParams(p => ({ ...p, mode: e.target.value as 'radius' | 'knn' }))}>
+                <option value="radius">Distance (radius)</option>
+                <option value="knn">Nearest facilities to each asset</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Production period</span>
+              <select value={params.window} onChange={e => setParams(p => ({ ...p, window: e.target.value as '2025' | 'last3' }))}>
+                <option value="2025">2025 average</option>
+                <option value="last3">Last 3 months (Oct–Dec 2025)</option>
+              </select>
+            </label>
+            <div className="field">
+              <span>Facility types shown</span>
+              <div className="chips">
+                {TYPES.map(t => (
+                  <button key={t.code} className={`chip ${types.has(t.code) ? 'on' : ''}`} onClick={() => toggleType(t.code)}>{t.label}</button>
+                ))}
+              </div>
+            </div>
+          </details>
 
           <div className="legend">
             {([
-              ['legacy', 'CNRL legacy'],
-              ['acquired', 'CNRL acquired 2024–25'],
-              ['competitor', 'Competitors (size = boe/d)'],
+              ['legacy', 'CNRL'],
+              ['acquired', 'CNRL, bought 2024–25'],
+              ['competitor', 'Competitors (bigger = more boe/d)'],
             ] as const).map(([k, label]) => (
-              <label key={k} className="legend-item">
+              <label key={k} className="legend-item" title="Show or hide">
                 <input type="checkbox" checked={show[k]} onChange={() => setShow(s => ({ ...s, [k]: !s[k] }))} />
                 <i style={{ background: `rgb(${COLORS[k].join(',')})` }} />
                 {label}
               </label>
             ))}
-            <div className="legend-item"><i className="ring" style={{ borderColor: `rgb(${COLORS.top3.join(',')})` }} />Top-3 candidates</div>
+            <div className="legend-item"><span className="spacer" /><i className="ring" style={{ borderColor: `rgb(${COLORS.top3.join(',')})` }} />Top-3 acquisition candidates</div>
             {focusOperator && (
               <div className="legend-item">
-                <i className="ring" style={{ borderColor: '#0b0b0b' }} />Focused operator
+                <span className="spacer" /><i className="ring" style={{ borderColor: '#0b0b0b' }} />{facilities.find(f => f.operator_baid === focusOperator)?.operator_name ?? 'Focused operator'}
                 <button className="btn ghost small" onClick={() => onFocusOperator(null)}>Clear</button>
               </div>
             )}
           </div>
+        </div>
+
+        <div className="map-hint" onPointerDown={e => e.stopPropagation()}>
+          <span><b>Drag</b> to lasso</span><span><b>Shift</b>+drag to add</span><span><b>Click</b> a dot for details</span>
+          <span><b>Right-drag</b> to pan</span><span><b>Scroll</b> to zoom</span>
         </div>
 
         {detailId && (
@@ -446,20 +464,41 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
         )}
       </div>
 
+      {!selected.size ? (
+        <div className="results-empty">
+          <b>Start here:</b> draw a loop around CNRL assets on the map. You'll see every competitor facility within {params.radius_km} km,
+          with its oil, gas and NGL production, grouped by operator.
+          <span className="muted"> Or click any dot to see its details.</span>
+        </div>
+      ) : (
       <div className="results">
         <div className="results-head">
-          <div className="tiles small">
-            <div className="tile"><div className="label">Competitor facilities</div><div className="value">{int(totals.n)}</div></div>
-            <div className="tile"><div className="label">Oil</div><div className="value">{compact(totals.oil)} <small>bbl/d</small></div></div>
-            <div className="tile"><div className="label">Gas</div><div className="value">{dec(totals.gas, 0)} <small>MMcf/d</small></div></div>
-            <div className="tile"><div className="label">NGLs</div><div className="value">{compact(totals.ngl)} <small>bbl/d</small></div></div>
-            <div className="tile"><div className="label">Total</div><div className="value">{compact(totals.boe)} <small>boe/d</small></div></div>
+          <div className="results-title">
+            <h3>
+              {loading && !result ? 'Searching…' : (
+                <>{int(totals.n)} competitor facilities from {int(result?.operators.length ?? 0)} operators{' '}
+                  {params.mode === 'radius' ? `within ${params.radius_km} km of` : `nearest to`} your {int(selected.size)} selected CNRL asset{selected.size === 1 ? '' : 's'}</>
+              )}
+            </h3>
+            <div className="totals">
+              <span><b>{compact(totals.oil)}</b> bbl/d oil</span>
+              <span><b>{dec(totals.gas, 0)}</b> MMcf/d gas</span>
+              <span><b>{compact(totals.ngl)}</b> bbl/d NGLs</span>
+              <span><b>{compact(totals.boe)}</b> boe/d total</span>
+              <span className="muted">{params.window === '2025' ? '2025 average' : 'Oct–Dec 2025'}</span>
+            </div>
           </div>
-          <div className="seg">
-            <button className={resultTab === 'operators' ? 'on' : ''} onClick={() => setResultTab('operators')}>By operator</button>
-            <button className={resultTab === 'facilities' ? 'on' : ''} onClick={() => setResultTab('facilities')}>By facility</button>
+          <div className="results-actions">
+            <div className="seg">
+              <button className={resultTab === 'operators' ? 'on' : ''} onClick={() => setResultTab('operators')}>By operator</button>
+              <button className={resultTab === 'facilities' ? 'on' : ''} onClick={() => setResultTab('facilities')}>By facility</button>
+            </div>
+            <button className="btn genie-btn small-btn" disabled={!result?.facilities.length}
+              onClick={() => onAskGenie('Which of these nearby competitors would be the best acquisition for CNRL, and why?')}>
+              ✦ Ask Genie about this
+            </button>
           </div>
-          {loading && <span className="muted">Querying Lakebase…</span>}
+          {loading && result && <span className="muted">Updating…</span>}
           {error && <span className="error">{error}</span>}
         </div>
         {resultTab === 'operators' ? (
@@ -471,7 +510,7 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
             highlight={r => top3.has(r.operator_baid)}
             onRowClick={r => onFocusOperator(r.operator_baid)}
             csvName="nearest-competitors-by-operator"
-            empty="Left-drag a loop around CNRL assets on the map to see the nearest competitor production."
+            empty="No producing competitor facilities in range. Try a bigger radius."
           />
         ) : (
           <DataTable
@@ -482,10 +521,11 @@ export function MapView({ facilities, candidates, tariffs, top3Baids, focusOpera
             highlight={r => top3.has(r.operator_baid)}
             onRowClick={r => setDetailId(r.facility_id)}
             csvName="nearest-competitor-facilities"
-            empty="Left-drag a loop around CNRL assets on the map to see the nearest competitor facilities."
+            empty="No producing competitor facilities in range. Try a bigger radius."
           />
         )}
       </div>
+      )}
     </div>
   )
 }
