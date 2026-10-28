@@ -25,6 +25,11 @@ All month keys are `'YYYY-MM'` strings, so they join directly across tables.
 9. **`market_prices` covers 2025 only** relative to production, so revenue or price analysis can only use 2025. Prices are in USD/bbl (WTI, WCS) and CAD/GJ (AECO).
 10. **`operators` totals are inflated.** They match volumetrics product sums across all activities (oil ≈2.6×, gas ≈9.5× PROD), which is why midstream firms (Pembina, Plains, Keyera) look like top gas "producers". Recompute from `volumetrics` with `ActivityID='PROD'`.
 11. **`facilities.region` is coarse lat/lon bands, not real regions.** Everything north of 55°N is "Peace Country", including Fort McMurray, Firebag and Christina Lake oil sands, so "Peace Country" shows the most oil (192M m³). The bands also overlap (Athabasca and West-Central share the 53.7–55° latitudes). Re-derive region from township/range or lat/lon if it matters.
+12. **`facilities.operator_baid` is stale.** Torxen's 776 facilities still show Torxen after moving to CNRL in 2025-07. Take the current operator from `volumetrics` (`max_by(OperatorBAID, ProductionMonth)`); every facility-month has exactly one operator. By current operator, CNRL (`0HE9`) has 4,698 facilities, 3,510 of them active in Dec 2025.
+13. **`Energy` is empty on PROD rows.** Gas heat content comes from `ngl_volumes`: sum(Energy)/sum(GasProduction) = 34.6 GJ per e³m³ of raw gas.
+14. **`ROYALTY` rows are oil-in-kind only** (`ProductID='OIL'`, about 2.6% of oil), so they can't give a royalty rate.
+15. **NGLs sit inside raw gas.** Use boe = oil + cond + raw gas/6, and report NGLs (from `ngl_volumes`) separately. Adding them to boe double-counts.
+16. **Facilities can change hands more than once.** E.g. ABBT0138861 went Surge → Archer → CNRL; attribute a deal to the immediate prior operator.
 
 ## Unit conversions
 - 1 m³ oil = 6.2898 bbl. Monthly m³ → bbl/d: `m3 * 6.2898 / days_in_month`.

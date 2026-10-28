@@ -18,7 +18,7 @@ Data: `shm_hack.petrinex` (the brief says `sbx_petrinex_app`, which doesn't exis
 ## 2. What the data can and can't support
 
 **Can (directly from Petrinex)**
-- CNRL footprint: BAID **`0HE9`**, with **3,963 facilities** (3,383 batteries, 291 gathering systems, 221 injection, 68 gas plants) and **20,904 wells** in `wells`.
+- CNRL footprint: BAID **`0HE9`**, with **3,963 facilities** (3,383 batteries, 291 gathering systems, 221 injection, 68 gas plants) and **21,167 wells** in `wells` (263 of them still named CHEVRON CANADA LIMITED, so key on BAID, never on name).
 - Production by operator / facility / month from `volumetrics` with `ActivityID='PROD'`: oil, gas, condensate, water.
 - NGLs: well-level C2–C5 in `ngl_volumes`, plus facility-level NGL products (`C2-MX`, `C3-MX`, …) in `volumetrics`.
 - Locations: all 25,316 facilities have lat/lon. Wells inherit their facility's location; `well_id` also encodes the DLS location (e.g. `ABWI100011008810W600` = 01-10-088-10W6) if we need well-level points.
@@ -89,15 +89,50 @@ New schema **`shm_hack.acq`** (we need CREATE SCHEMA permission on `shm_hack`; v
 
 Scoring math (§3.3–3.4) runs **in the app** on `operator_metrics` (about 300 rows), so sliders re-rank instantly. Gold tables are the only heavy SQL.
 
-**Lakebase**: instance `lakebase-postgres` (AVAILABLE). Create a new database `acq` so we don't touch preet's `petrinex` DB. Load gold tables via **synced tables** (UC → Lakebase, snapshot) or a COPY loader as in preet's app. Indexes: `(lat, lon)` btree + `h3` for neighbor lookup; PostGIS GIST if the extension is available (check `pg_available_extensions`).
+**Lakebase**: a dedicated instance **`cnrl-acq`** (CU_1) that we own. Our user has no role on the shared `lakebase-postgres`, and this avoids touching preet's `petrinex` DB. Database `acq`, loaded by a direct COPY script from the gold tables. Stop the instance when not demoing. Indexes: `(lat, lon)` btree + `h3` for neighbor lookup; PostGIS GIST if the extension is available (check `pg_available_extensions`).
 
 ## 5. App (Databricks App)
 
-**Stack: Dash + Plotly**, matching preet's `petrinex-databricks-app` (same psycopg pool + OAuth-token `db.py` pattern, `app.yaml` with a Lakebase `database` resource). `plotly` `scatter_map` gives WebGL points for 25k facilities and **built-in lasso/box select** (`selectedData`), with no extra map library or token.
+**Stack: React frontend + FastAPI backend**, deployed as one Databricks App.
+
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | **React + TypeScript + Vite** | Fast dev loop; `npm run build` emits static `dist/` |
+| Map | **MapLibre GL** (via `react-map-gl/maplibre`) + **deck.gl** `ScatterplotLayer` | WebGL handles 25k points smoothly; no Mapbox token |
+| Lasso | Freehand polygon drawn on a deck.gl overlay; `@turf/boolean-point-in-polygon` picks the CNRL points inside it | Small, no plugin lock-in; selection happens client-side, so it's instant |
+| Tables | **TanStack Table** | Sorting, column formatting, CSV export |
+| Charts | **Recharts** | Top-3 savings bars, sensitivity |
+| UI kit | Tailwind CSS (+ shadcn/ui if time allows) | Quick, consistent layout |
+| Backend | **FastAPI** (Python) + `psycopg` pool | Serves `/api/*` and the built `dist/`. Lakebase connection reuses preet's OAuth-token `db.py` pattern |
+| Scoring | Python module `scoring.py` in the backend | One source of truth for the ROCE / NPV math; ~300 operators, so re-ranking is instant |
+| Deploy | `app.yaml`: `uvicorn backend.main:app`, Lakebase `database` resource | Build the frontend before `databricks apps deploy` (or let the app run `npm run build` if supported; verify in step 0) |
+
+The basemap tiles (e.g. Carto Positron / OSM) load from an external tile server in the browser. They are **visual only, not analysis data**, so all numbers still come from `shm_hack`.
+
+**Repo layout**
+```
+app/
+  app.yaml, requirements.txt
+  backend/   main.py (FastAPI routes), db.py (Lakebase pool), queries.py (SQL), scoring.py
+  frontend/  package.json, vite.config.ts, src/
+             components/ MapView.tsx, LassoOverlay.tsx, NearbyTable.tsx,
+                         RankingTable.tsx, AssumptionsPanel.tsx, Top3.tsx
+             api.ts (typed fetch client)
+pipelines/   SQL / notebooks building shm_hack.acq silver + gold
+```
+
+**API**
+| Route | Returns |
+|---|---|
+| `GET /api/facilities` | All map points: id, name, operator, is_cnrl, type, lat, lon, oil/gas/NGL/boe per day (~25k rows, gzipped) |
+| `POST /api/nearby` `{cnrl_ids, radius_km}` | Competitor facilities near the lassoed CNRL assets + operator rollup |
+| `GET /api/assumptions` | Default price/cost deck from `shm_hack.acq.assumptions` |
+| `POST /api/rank` `{assumptions}` | Ranked candidates (ROCE, NPV@15%, accretion, proximity, savings) |
+| `GET /api/top3` | Top-3 detail + transport-savings breakdown |
 
 **Layout**
 1. **Map tab**: CNRL assets (one hue) vs competitors (second hue, sized by boe/d), top-3 candidates outlined. Filters row: facility type, product, radius (km), operator search.
-   - Lasso CNRL points → server receives facility ids → Lakebase query: competitor facilities within R km (or k nearest) of any selected CNRL asset.
+   - Lasso CNRL points (client-side point-in-polygon) → `POST /api/nearby` with their ids → Lakebase query: competitor facilities within R km (or k nearest) of any selected CNRL asset.
    - **Result table**: competitor facility, operator, nearest CNRL asset, km, oil bbl/d, gas MMcf/d, NGL bbl/d, boe/d. Plus an operator rollup and CSV export.
 2. **Ranking tab**: candidates table (ROCE, NPV@15%, accretion, boe/d, decline, proximity score, transport savings), sortable, top 3 highlighted. Assumptions panel on the side.
 3. **Top-3 tab**: side-by-side cards plus a transport-savings bar chart, with a sensitivity on $/boe/d multiple and oil price.
@@ -119,10 +154,10 @@ HAVING min(...) <= %(r)s ORDER BY km;
 
 | Step | What | Done when |
 |---|---|---|
-| 0 | Verify: CREATE SCHEMA on `shm_hack`, create DB on `lakebase-postgres`, PostGIS availability, app create permission | all four confirmed |
+| 0 | Verify: CREATE SCHEMA on `shm_hack`, create DB on `lakebase-postgres`, PostGIS availability, app create permission, Node available locally for the Vite build | all five confirmed |
 | 1 | Silver + gold tables (SQL in `pipelines/`), spot-check CNRL totals against EDA | `facility_summary`, `operator_metrics` populated |
 | 2 | Sync gold → Lakebase `acq` | `SELECT count(*)` works from local psycopg |
-| 3 | **App v1: map + lasso + table** (D1, the core requirement) | deployed, lasso returns rows |
+| 3 | **App v1: map + lasso + table** (D1, the core requirement). FastAPI skeleton + `/api/facilities` + `/api/nearby` first, then the React map | deployed, lasso returns rows |
 | 4 | Scoring + ranking tab + assumptions (D2, D4) | top 3 stable under default deck |
 | 5 | Transport savings + top-3 tab (D3) | $/yr per candidate shown |
 | 6 | Polish, narrative, demo script | |
@@ -130,6 +165,8 @@ HAVING min(...) <= %(r)s ORDER BY km;
 Steps 1→3 are the critical path. Scoring (step 4) can run in parallel once `operator_metrics` exists.
 
 ## 7. Open decisions (what the "perfect prompt" would pin down)
+
+**Superseded:** these are now answered in [perfect-prompt.md](perfect-prompt.md) §4, which also adds CNRL's deal history as the scoring baseline (precedent fit, back-test). Where the two differ, the prompt wins. The table below is kept for the record.
 
 | # | Question | Default if unanswered |
 |---|---|---|

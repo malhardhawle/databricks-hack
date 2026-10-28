@@ -1,0 +1,30 @@
+# Databricks Asset Bundle for the CNRL Acquisition Explorer app.
+#   cd app/frontend && npm run build        # dist/ must exist; it is gitignored but synced (see sync.include)
+#   databricks bundle deploy -p hack        # create/update the app and upload ./app
+#   databricks bundle run cnrl_acquisition_explorer -p hack   # deploy the uploaded source and start the app
+bundle:
+  name: cnrl-acquisition-explorer
+
+sync:
+  include:
+    - app/frontend/dist/**
+
+resources:
+  apps:
+    cnrl_acquisition_explorer:
+      name: cnrl-acquisition-explorer
+      description: "CNRL acquisition explorer: Petrinex 2024-25 candidates, lasso map and ranking, served from Lakebase"
+      source_code_path: ./app
+      resources:
+        - name: database
+          description: Lakebase database with the app tables (shm_hack.acq copies)
+          database:
+            instance_name: cnrl-acq
+            database_name: acq
+            permission: CAN_CONNECT_AND_CREATE
+
+targets:
+  prod:
+    default: true
+    workspace:
+      host: https://adb-7808899982160538.18.azuredatabricks.net

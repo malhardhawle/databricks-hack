@@ -19,6 +19,15 @@ Read these before writing queries:
 - Units: liquids m³, gas e³m³, energy GJ.
 - `wells.formation` and `facilities.region` are unreliable, `operators` totals are inflated, and `market_prices` only overlaps 2025.
 
+## The app we're building
+CNRL acquisition explorer. The spec is [ref/perfect-prompt.md](ref/perfect-prompt.md); the architecture is [ref/acquisition-app-plan.md](ref/acquisition-app-plan.md).
+- Derived tables go to `shm_hack.acq`, built by the SQL in `pipelines/`.
+- **Ask before creating schemas, Lakebase instances/databases or apps.**
+- `python scripts/run_pipeline.py --dry-run -q "SELECT ... FROM {acq}.<table>"` checks pipeline output read-only (every table as a CTE). Without `--dry-run` it creates the tables.
+- Scoring logic: `app/backend/scoring.py`. How to run the app locally: [app/README.md](app/README.md) (backend :8000, Vite :5173).
+- Lakebase: instance `cnrl-acq` (CU_1, ours), database `acq`, loaded by `scripts/load_lakebase.py`. It bills while running.
+- Tests: `.venv/Scripts/python -m pytest` (unit). `RUN_DATABRICKS_TESTS=1 ... -m databricks` adds read-only warehouse data checks.
+
 ## Reference material
 `ref/` holds reference data and docs we add; see [ref/README.md](ref/README.md). The visual EDA is [ref/eda-report.html](ref/eda-report.html).
 

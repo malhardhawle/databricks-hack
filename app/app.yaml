@@ -1,0 +1,4 @@
+command: ["python", "backend/serve.py"]
+env:
+  - name: LAKEBASE_INSTANCE
+    value: cnrl-acq

@@ -24,7 +24,8 @@ def api(method, path, body=None):
     return json.loads(subprocess.run(cmd, capture_output=True, text=True).stdout)
 
 
-def run(sql):
+def query(sql):
+    """Execute one statement; return (columns, rows) with values as strings, or raise on failure."""
     r = api("post", "/api/2.0/sql/statements", {
         "warehouse_id": WAREHOUSE, "statement": sql, "wait_timeout": "50s",
         "on_wait_timeout": "CONTINUE", "format": "JSON_ARRAY", "disposition": "INLINE",
@@ -33,15 +34,30 @@ def run(sql):
         time.sleep(3)
         r = api("get", f"/api/2.0/sql/statements/{r['statement_id']}")
     if r["status"]["state"] != "SUCCEEDED":
-        print("ERROR:", r["status"])
-        return
-    cols = [c["name"] for c in r["manifest"]["schema"]["columns"]]
-    rows = r.get("result", {}).get("data_array") or []
+        raise RuntimeError(r["status"].get("error", r["status"]))
+    cols = [c["name"] for c in r.get("manifest", {}).get("schema", {}).get("columns", [])]  # DDL has none
+    rows = list(r.get("result", {}).get("data_array") or [])
+    # Large results arrive in chunks; follow next_chunk links until exhausted.
+    chunk = r.get("result", {})
+    while chunk.get("next_chunk_internal_link"):
+        chunk = api("get", chunk["next_chunk_internal_link"])
+        rows += chunk.get("data_array") or []
+    return cols, rows
+
+
+def show(cols, rows):
     widths = [min(MAX_COL, max([len(c)] + [len(str(row[i])) for row in rows])) for i, c in enumerate(cols)]
     print(" | ".join(c.ljust(w) for c, w in zip(cols, widths)))
     print("-+-".join("-" * w for w in widths))
     for row in rows:
         print(" | ".join(str(v)[:MAX_COL].ljust(w) for v, w in zip(row, widths)))
+
+
+def run(sql):
+    try:
+        show(*query(sql))
+    except RuntimeError as e:
+        print("ERROR:", e)
 
 
 if __name__ == "__main__":
